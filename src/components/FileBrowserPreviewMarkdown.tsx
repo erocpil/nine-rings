@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { captureRenderedPreview, invalidatePreviewAnchors, restoreRenderedPreview } from "../lib/preview-scroll-position";
 import { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import type { PreviewScrollPosition } from "../lib/local-files/browser-preview";
@@ -7,14 +7,19 @@ import { DocumentImageLibraryContext, DocumentResourceContext } from "./Document
 import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useLocalMarkdownImages } from "../hooks/useLocalMarkdownImages";
 import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
+import { FileBrowserRenderedFind } from "./FileBrowserRenderedFind";
+import type { PreviewFindInput } from "./FileBrowserPreviewFind";
 
-export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, autoFocus = false, position, onOpenLink }: {
-  source: string; rootId: string; node: string; provider: BrowserDirectoryProvider; autoFocus?: boolean; position?: PreviewScrollPosition; onOpenLink: (href: string) => void;
+export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, autoFocus = false, position, onOpenLink, find }: {
+  source: string; rootId: string; node: string; provider: BrowserDirectoryProvider; autoFocus?: boolean; position?: PreviewScrollPosition;
+  onOpenLink: (href: string) => void; find?: PreviewFindInput;
 }) {
   const previewImage = useLocalMarkdownImages(provider, rootId, node);
   const revision = useMemo(() => SourceNavigationDocument.from(source, { ops: [] }), [source]);
   const restored = useRef(false);
+  const [viewport, setViewport] = useState<HTMLElement | null>(null);
   const ready = useCallback((element: HTMLDivElement) => {
+    setViewport(element);
     for (const item of element.querySelectorAll<HTMLElement>("[data-source-offset], [data-reading-text-start]")) {
       item.dataset.previewSourceOffset = item.dataset.sourceOffset ?? String(revision.offsetAt(Number(item.dataset.readingTextStart)));
     }
@@ -35,5 +40,7 @@ export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, aut
     if (href && !href.startsWith("#") && !/^(https?:|mailto:|tel:)/i.test(href)) {
       event.preventDefault(); event.stopPropagation(); onOpenLink(href);
     }
-  }}><MarkdownSplitPreview revision={revision} areaRef={area} enabled sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false}>{null}</MarkdownSplitPreview></div></DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>;
+  }}>{find && <FileBrowserRenderedFind viewport={viewport} {...find} />}
+    <MarkdownSplitPreview revision={revision} areaRef={area} enabled sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false}>{null}</MarkdownSplitPreview>
+  </div></DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>;
 }

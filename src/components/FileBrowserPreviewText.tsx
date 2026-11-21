@@ -1,15 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { browserPreviewMatches, type PreviewScrollPosition } from "../lib/local-files/browser-preview";
 import { captureTextPreview, restoreTextPreview } from "../lib/preview-scroll-position";
-import { ToolbarIcon } from "./ToolbarIcon";
+import { FileBrowserPreviewFind, type PreviewFindInput } from "./FileBrowserPreviewFind";
 
-export function FileBrowserPreviewText({ position, wrap, source, query, onQuery, matchCase, onCase, findOpen, onCloseFind }: {
-  position?: PreviewScrollPosition; wrap: boolean; source: string; query: string; onQuery: (query: string) => void; matchCase: boolean; onCase: (value: boolean) => void; findOpen: boolean; onCloseFind: () => void;
+export function FileBrowserPreviewText({ position, wrap, source, find }: {
+  position?: PreviewScrollPosition; wrap: boolean; source: string; find?: PreviewFindInput;
 }) {
+  const query = find?.query ?? "";
+  const matchCase = find?.matchCase ?? false;
   const [index, setIndex] = useState(0);
   const pre = useRef<HTMLPreElement>(null);
   useLayoutEffect(() => { if (pre.current && position) restoreTextPreview(pre.current, position); }, [position, source]);
-  const result = useMemo(() => browserPreviewMatches(source, findOpen ? query : "", matchCase), [source, query, findOpen, matchCase]);
+  const result = useMemo(() => browserPreviewMatches(source, query, matchCase), [source, query, matchCase]);
   const current = Math.min(index, Math.max(0, result.matches.length - 1));
   useEffect(() => { setIndex(0); }, [query, matchCase, source]);
   useEffect(() => {
@@ -29,17 +31,7 @@ export function FileBrowserPreviewText({ position, wrap, source, query, onQuery,
   }
   parts.push(source.slice(from));
   return <>
-    {findOpen && <div className="file-browser-preview-find" role="search" aria-label="预览内查找" onKeyDown={event => {
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onCloseFind(); }
-      else if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); step(event.shiftKey ? -1 : 1); }
-    }}>
-      <input type="search" aria-label="查找预览文本" placeholder="仅查找已预览内容" maxLength={256} value={query} onChange={event => onQuery(event.target.value)} />
-      <button type="button" aria-label="预览查找区分大小写" aria-pressed={matchCase} title="区分大小写" onClick={() => onCase(!matchCase)}>Aa</button>
-      <span role="status">{result.matches.length ? `${current + 1}/${result.matches.length}${result.limited ? "+" : ""}` : "0/0"}</span>
-      <button type="button" className="btn-icon" aria-label="上一个预览匹配" disabled={!result.matches.length} onClick={() => step(-1)}><ToolbarIcon name="chevronLeft" /></button>
-      <button type="button" className="btn-icon" aria-label="下一个预览匹配" disabled={!result.matches.length} onClick={() => step(1)}><ToolbarIcon name="chevronRight" /></button>
-      <button type="button" className="btn-icon" aria-label="关闭预览查找" onClick={onCloseFind}><ToolbarIcon name="close" /></button>
-    </div>}
+    {find && <FileBrowserPreviewFind {...find} current={current} count={result.matches.length} limited={result.limited} step={step} />}
     <pre onScroll={event => { if (position) captureTextPreview(event.currentTarget, position); }} className={wrap ? "file-browser-preview-wrapped" : undefined} ref={pre} tabIndex={0} aria-label="预览文本">{parts}</pre>
   </>;
 }

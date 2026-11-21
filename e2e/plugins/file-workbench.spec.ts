@@ -1693,7 +1693,7 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     await expect(preview.locator("strong").filter({ hasText: "bold content" })).toBeVisible();
     await preview.getByRole("link", { name: "Local link", exact: true }).click();
     await expect(page).toHaveURL(/file-workbench\.html$/);
-    await expect(preview.getByRole("status")).toContainText("预览不会跳离当前文件");
+    await expect(preview.getByRole("status")).toContainText("无法打开 Markdown 链接");
     expect((await page.evaluate(() => indexedDB.databases())).map(db => db.name)).not.toContain("nine_rings");
     const markerFont = await preview.locator("ol > li").first().evaluate(element => ({ marker: getComputedStyle(element, "::before").fontSize, text: getComputedStyle(element.querySelector("p")!).fontSize }));
     expect(markerFont.marker).toBe(markerFont.text);
@@ -2733,6 +2733,44 @@ test("Markdown 相对图片在快速预览中随来源目录切换", async ({ pa
     }, url)).toBe(true);
     if (folder === "alpha") await left.getByRole("button", { name: "上级目录", exact: true }).click();
   }
+});
+
+test("Markdown 快速预览直接查找渲染正文并连续定位", async ({ page }, testInfo) => {
+  const root = testInfo.outputPath("markdown-preview-find");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "guide.md"), [
+    "# Search sample",
+    "First needle **phrase**.",
+    ...Array.from({ length: 40 }, () => "A paragraph between the matches. ".repeat(7)),
+    "Second needle *phrase*.",
+    "[Link label](only-in-url.md)",
+  ].join("\n\n"));
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(root);
+  await page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /^guide.md/ }).click();
+  await page.getByRole("button", { name: "快速预览", exact: true }).click();
+  const preview = page.getByRole("region", { name: "快速预览", exact: true });
+  await expect(preview.getByRole("heading", { name: "Search sample" })).toBeVisible();
+  await preview.getByRole("button", { name: "查找预览", exact: true }).click();
+  const query = preview.getByRole("searchbox", { name: "查找预览文本" });
+  await query.fill("needle phrase");
+  const status = preview.getByRole("search").getByRole("status");
+  await expect(status).toHaveText("1/2");
+  await expect(preview.getByLabel("预览文本", { exact: true })).toHaveCount(0);
+  await query.press("Enter");
+  await expect(status).toHaveText("2/2");
+  await expect(preview.getByText("Second needle")).toBeInViewport();
+  await expect.poll(() => page.evaluate(() => {
+    const match = CSS.highlights.get("workbench-preview-current");
+    return match && Array.from(match, range => String(range));
+  })).toEqual(["needle phrase"]);
+  await query.fill("only-in-url");
+  await expect(status).toHaveText("0/0");
+  await query.press("Escape");
+  await expect(query).toHaveCount(0);
+  await preview.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await preview.getByRole("button", { name: "查找预览", exact: true }).click();
+  await expect(status).toHaveText("1/1");
 });
 
 test("Markdown 快速预览沿授权目录链接打开完整编辑器并定位章节", async ({ page }, testInfo) => {
