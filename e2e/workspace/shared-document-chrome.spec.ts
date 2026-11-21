@@ -50,8 +50,9 @@ for (const origin of ["database", "local"] as const) test(`只读渲染共享工
   if (await more.getAttribute("aria-expanded") === "false") await more.click();
   const tools = root.getByRole("toolbar", { name: "文档阅读工具", exact: true });
   await expect(tools).toBeVisible();
-  await expect(tools.locator("button")).toHaveCount(5);
-  for (const name of ["文档查找", "跳转块", "折叠全部标题", "展开全部标题", "复制"]) await expect(tools.getByRole("button", { name, exact: true })).toBeVisible();
+  const readingCommands = ["文档查找", "跳转块", "折叠全部标题", "展开全部标题", "复制", "导出 PDF", "导出 HTML"];
+  await expect(tools.locator("button")).toHaveCount(readingCommands.length);
+  for (const name of readingCommands) await expect(tools.getByRole("button", { name, exact: true })).toBeVisible();
   await tools.getByRole("button", { name: "折叠全部标题", exact: true }).click();
   await tools.getByRole("button", { name: "展开全部标题", exact: true }).click();
   await page.evaluate(() => {
