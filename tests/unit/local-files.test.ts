@@ -305,9 +305,11 @@ it("native image reading is chunked, binary exact and stops before the next chun
     throw new Error(command);
   });
   const image = await localFileService.readImageAsset("root", "large.png");
-  expect(new Uint8Array(Buffer.from(image.split(",")[1], "base64"))).toEqual(
-    data,
-  );
+  // Compare binary buffers directly. Vitest's generic typed-array equality
+  // walks every index and can exhaust the test budget under coverage.
+  const decoded = Buffer.from(image.split(",")[1], "base64");
+  expect(decoded.byteLength).toBe(data.byteLength);
+  expect(decoded.equals(Buffer.from(data))).toBe(true);
   expect(reads).toBe(2);
   reads = 0;
   cancel = true;
