@@ -272,9 +272,9 @@ macOS 包将 Markdown 和纯文本登记为候选编辑器。冷启动从进程�
 
 在同卷排他改名之前，Editor 将两端位置、目标标签和文件身份证据写入会话清单并刷盘。完成后目录项刷盘，路径保护随文件转移，旧标签的浏览位置、渲染或源码实例、撤销和原有标签顺序继续使用。重启时先核对两端文件身份，再恢复未完成的事务。两端证据无法确定时保留原记录并提示核对。浏览器对已关闭文件或目录的普通移动在确认写入后迁移路径偏好。打开中的文件由 Editor 在显示新位置时迁移状态，用清单中的回执完成跨重启重试。
 
-**安全替换同名目标。** VS Code Explorer 在目标同名时要求显式确认。File Workbench 采用逐项确认，并为原目标保留备份。预览显示两份文件的大小、修改时间和 SHA-256 摘要，发布时复核完整修订及有效授权。原生路径租约保护已打开的文件，前端检查恢复草稿和目标只读设置。当前范围是 macOS／Linux 支持交换的目标文件系统，来源和目标均为不超过 256 MiB 的普通文件。参见 [VS Code Explorer 文件操作](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/files/browser/fileActions.ts)。
+**安全替换同名目标。** VS Code Explorer 在目标同名时要求显式确认。File Workbench 采用逐项确认，并为原目标保留备份。预览显示两份文件的大小、修改时间和 SHA-256 摘要，发布时复核完整修订及有效授权。原生路径租约保护已打开的文件，前端检查恢复草稿和目标只读设置。当前范围是 macOS／Linux 支持交换的目标文件系统，以及 Windows 支持 `ReplaceFileW` 的卷。来源和目标均为不超过 256 MiB 的普通文件。参见 [VS Code Explorer 文件操作](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/files/browser/fileActions.ts)。
 
-新内容和来源的基本权限先写入目标卷的私有暂存目录，恢复记录和副本刷盘后，用系统原子交换将旧目标移到 `previous`。旧目标保留原文件身份和元数据。新文件的扩展属性、ACL 和时间戳不在当前复制协议内。队列区分已完成、未写入和需要核对三种结果。交换边界发生外部改动时保留两份文件供核对，避免盲目交换回去。隐藏备份由用户核对并清理。Windows、目录和批量覆盖仍使用现有冲突处理。
+新内容和来源的基本权限先写入目标卷的私有暂存目录，恢复记录和副本刷盘后，用系统原子交换将旧目标移到 `previous`。旧目标保留原文件身份和元数据。新文件的扩展属性、ACL 和时间戳不在当前复制协议内。队列区分已完成、未写入和需要核对三种结果。交换边界发生外部改动时保留两份文件供核对，避免盲目交换回去。隐藏备份由用户核对并清理。Windows 使用 `ReplaceFileW` 并指定 `previous`。该 API 可在移出旧文件后报告失败，所以调用一旦发出，遇到失败便保留暂存与备份供核对。Windows 按系统语义复制来源文件并合并目标元数据，摘要校验覆盖主数据流。目录和批量覆盖仍使用现有冲突处理。
 
 **普通文本保存。** Nine Rings 与 Workbench 在支持交换的 macOS／Linux 文件系统上取得发布时实际移走的文件。Windows 使用带备份的 `ReplaceFileW`。实际旧版或新提交校验失败时，保留备份并以需要核对的结果返回。浏览器在提交可写流前重新核验，并在失败时取消流。浏览器文件句柄的关闭操作没有基于版本的原子替换能力。参见 [Microsoft 的 ReplaceFileW 契约](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew)。
 

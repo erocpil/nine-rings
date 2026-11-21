@@ -3107,13 +3107,13 @@ test("重名冲突并排显示来源目标，保留双方适用于本任务后�
   await expect(page.locator(".file-browser-job")).toContainText("成功 2 项");
 });
 
-test("重名替换逐项确认，取消不写入并在结果中显示旧版备份", async ({ page }) => {
+for (const platform of ["MacIntel", "Win32"]) test(`重名替换逐项确认，取消不写入并在结果中显示旧版备份 ${platform}`, async ({ page }) => {
   const review = {
     source: { identity: "1:2", digest: "a".repeat(64), size: 12, modifiedMs: 1000 },
     target: { identity: "1:3", digest: "b".repeat(64), size: 22, modifiedMs: 2000 },
   };
-  await page.addInitScript(review => {
-    Object.defineProperty(navigator, "platform", { value: "MacIntel" });
+  await page.addInitScript(({ review, platform }) => {
+    Object.defineProperty(navigator, "platform", { value: platform });
     let id = 1;
     const replacements: unknown[] = [];
     Object.assign(window, {
@@ -3135,7 +3135,7 @@ test("重名替换逐项确认，取消不写入并在结果中显示旧版备�
         },
       },
     });
-  }, review);
+  }, { review, platform });
   const calls = () => page.evaluate(() => (window as Window & { __replacementCalls?: unknown[] }).__replacementCalls);
   await page.goto("/file-workbench.html");
   const left = page.getByRole("region", { name: "左侧目录", exact: true });
@@ -3143,7 +3143,7 @@ test("重名替换逐项确认，取消不写入并在结果中显示旧版备�
   const first = left.getByRole("option", { name: /^a.c/ });
   const second = left.getByRole("option", { name: /^b.c/ });
   await first.click();
-  // The page emulates macOS even when Playwright's controller runs on Linux.
+  // Meta permits multiselect in Workbench on both emulated platforms.
   await second.click({ modifiers: ["Meta"] });
   await expect(first).toHaveAttribute("aria-selected", "true");
   await expect(second).toHaveAttribute("aria-selected", "true");

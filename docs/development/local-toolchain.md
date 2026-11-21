@@ -190,3 +190,10 @@ bash scripts/with-local-tools.sh npm run tauri:workbench -- build --target aarch
 构建完成：`.local-tools/target/aarch64-apple-darwin/release/bundle/macos/File Workbench.app`，约 16 MiB 本机占用；`file` 确认为 ARM64，Info.plist 的标识为 `com.ninerings.fileworkbench`、版本 0.1.0、最低 macOS 11.0。构建包含独立前端生产资源，不覆盖 Nine Rings 的 `dist/`；未生成 DMG、未安装到 Applications、未运行 GUI 或承诺签名公证。构建日志：`/tmp/nr-workbench-native-build.log`。
 
 前端检查的 tsx 管道、E2E 的 localhost 监听及 Rust 原有 macOS 文件监测测试受沙箱限制；经授权在沙箱外重新执行，未改测试或系统设置。原应用仍使用自己的 `src-tauri/Cargo.lock`；新增 Rust workspace 测试必须显式使用 `--manifest-path native/Cargo.toml --workspace`，否则不会运行作为依赖移动过去的文件服务单测。
+
+
+### File Workbench Windows／Linux 交付
+
+`.github/workflows/file-workbench.yml` 在 Windows x64 构建 NSIS 安装程序，在 Linux x64 构建 Debian 安装包。分别执行 Workbench 原生测试和共享文件宿主测试，以覆盖 runner 文件系统上的普通文件替换、旧版保留和竞争处理。Linux 构建检查包名、版本和架构。安装包及 SHA-256 文件保存在独立的 `file-workbench-*` 运行产物中。
+
+正式下载使用 GitHub Releases 的 `workbench-v<版本>` 标签。先在 Workbench 的 `tauri.conf.json` 与 Rust 包中确认版本，再从 `main` 手动运行 **File Workbench Desktop**，勾选 `publish` 才发布。用户可从对应版本下载新安装包并手动升级。应用标识为 `com.ninerings.fileworkbench`，安装包、标签及数据目录与 Nine Rings 分开。自动更新另需配置 Workbench 专用签名公钥、签名密钥和发布端点。 [GitHub Releases](https://github.com/erocpil/nine-rings/releases) · [Tauri 更新插件契约](https://v2.tauri.app/plugin/updater/)

@@ -383,7 +383,11 @@ mod atomic {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(windows)]
+#[path = "windows_replacement.rs"]
+mod atomic;
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 mod atomic {
     use super::*;
 
@@ -509,7 +513,10 @@ pub async fn workbench_replace_file(
     .map_err(|error| error.to_string())?
 }
 
-#[cfg(all(test, any(target_os = "macos", target_os = "linux")))]
+#[cfg(all(
+    test,
+    any(target_os = "macos", target_os = "linux", target_os = "windows")
+))]
 mod tests {
     use super::*;
 

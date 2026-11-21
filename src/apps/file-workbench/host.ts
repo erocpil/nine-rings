@@ -32,7 +32,7 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
     window.dispatchEvent(new Event("file-workbench:drafts"));
     try { localStorage.setItem("file-workbench:drafts-revision", crypto.randomUUID()); } catch { /* The confirmed IndexedDB transaction remains authoritative. */ }
   }, { retainUntilResolved: true });
-  const replacementsSupported = isTauriRuntime() && /^(Mac|Linux)/.test(navigator.platform);
+  const replacementsSupported = isTauriRuntime() && /^(Mac|Linux|Win)/.test(navigator.platform);
   const assertReplacementTarget = (paths: ReplacementPaths) => {
     pluginRuntime.assert(owner, "filesystem.files.write");
     if (isLocalFileReadOnly(paths.targetRootId, paths.targetNode)) throw new Error("REPLACEMENT_NOT_WRITTEN: 目标文件或目录为只读");

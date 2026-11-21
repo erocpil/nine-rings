@@ -1,0 +1,155 @@
+name: File Workbench Desktop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - 'src/**'
+      - 'package*.json'
+      - '.node-version'
+      - 'vite.workbench.config.ts'
+      - 'file-workbench.html'
+      - 'public/**'
+      - 'build-plugins/**'
+      - 'scripts/workbench-tauri.mjs'
+      - '.github/workflows/file-workbench.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - 'src/**'
+      - 'package*.json'
+      - '.node-version'
+      - 'vite.workbench.config.ts'
+      - 'file-workbench.html'
+      - 'public/**'
+      - 'build-plugins/**'
+      - 'scripts/workbench-tauri.mjs'
+      - '.github/workflows/file-workbench.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the configured version to the independent Workbench download channel
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Workbench ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+            bundle: nsis
+            suffix: exe
+          - os: ubuntu-22.04
+            platform: linux-x64
+            bundle: deb
+            suffix: deb
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.local-tools/workbench-native
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+        with:
+          toolchain: '1.98.1'
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libsoup-3.0-dev patchelf
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          workspaces: 'native -> ../.local-tools/workbench-native'
+          key: workbench-${{ matrix.platform }}
+          cache-workspace-crates: false
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+      - run: npm ci
+      - name: Verify replacement and recovery on the runner filesystem
+        run: cargo test --manifest-path native/Cargo.toml --workspace --locked
+      - name: Build independent installer
+        run: npm run tauri:workbench -- build --bundles ${{ matrix.bundle }} -- --locked
+      - name: Stage installer and checksum
+        shell: bash
+        env:
+          WORKBENCH_BUNDLE: ${{ matrix.bundle }}
+          WORKBENCH_SUFFIX: ${{ matrix.suffix }}
+          WORKBENCH_PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          version="$(node -p 'require("./native/file-workbench/src-tauri/tauri.conf.json").version')"
+          shopt -s nullglob
+          files=("$CARGO_TARGET_DIR"/release/bundle/"$WORKBENCH_BUNDLE"/*."$WORKBENCH_SUFFIX")
+          if [[ ${#files[@]} -ne 1 || ! -s "${files[0]}" ]]; then
+            echo "Expected one non-empty File Workbench installer" >&2
+            exit 1
+          fi
+          if [[ "$WORKBENCH_BUNDLE" == deb ]]; then
+            test "$(dpkg-deb --field "${files[0]}" Package)" = file-workbench
+            test "$(dpkg-deb --field "${files[0]}" Version)" = "$version"
+            test "$(dpkg-deb --field "${files[0]}" Architecture)" = amd64
+          fi
+          mkdir -p workbench-artifacts
+          filename="file-workbench-$version-$WORKBENCH_PLATFORM.$WORKBENCH_SUFFIX"
+          cp "${files[0]}" "workbench-artifacts/$filename"
+          (cd workbench-artifacts && sha256sum "$filename" > "$filename.sha256")
+      - name: Install and verify Debian package
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          installer=$(realpath workbench-artifacts/*.deb)
+          sudo apt-get install -y "$installer"
+          dpkg-query -W -f='${Status}\n' file-workbench | grep -Fx 'install ok installed'
+          test -x "$(command -v file-workbench)"
+      - name: Install and verify NSIS package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem workbench-artifacts -Filter *.exe | Select-Object -First 1
+          if (-not $installer) { throw "Workbench installer is missing" }
+          $destination = Join-Path $env:RUNNER_TEMP 'workbench-install-smoke'
+          $result = Start-Process -FilePath $installer.FullName -ArgumentList '/S', "/D=$destination" -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Workbench install failed: $($result.ExitCode)" }
+          $program = Get-ChildItem $destination -Recurse -File | Where-Object { $_.Name -match '^(file[ -]workbench)\.exe$' }
+          if (-not $program) { throw "Workbench executable is missing from the installation" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: file-workbench-${{ matrix.platform }}
+          path: workbench-artifacts/
+          if-no-files-found: error
+
+  publish:
+    name: Publish Workbench downloads
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    needs: bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: file-workbench-*
+          path: workbench-release
+          merge-multiple: true
+      - name: Publish versioned manual update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(node -p 'require("./native/file-workbench/src-tauri/tauri.conf.json").version')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="workbench-v$version"
+          (cd workbench-release && sha256sum -c ./*.sha256)
+          gh release create "$tag" workbench-release/* --target "$GITHUB_SHA" --latest=false \
+            --title "File Workbench $version" --notes "Windows NSIS and Linux Debian installers for File Workbench at $GITHUB_SHA."
