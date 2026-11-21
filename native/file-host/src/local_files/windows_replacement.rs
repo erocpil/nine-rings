@@ -177,7 +177,7 @@ pub(super) fn replace(
             .open(&incoming)
             .and_then(|file| file.sync_all())
             .map_err(|error| error.to_string())?;
-        let manifest = serde_json::json!({ "targetName": target.file_name(), "expected": expected, "incoming": copied });
+        let manifest = replacement_receipt(&target, expected, &copied);
         let file = fs::OpenOptions::new()
             .write(true)
             .create_new(true)

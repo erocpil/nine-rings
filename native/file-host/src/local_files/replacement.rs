@@ -7,6 +7,9 @@ struct FileRevision {
     digest: String,
     size: u64,
     modified_ms: u128,
+    #[cfg(unix)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unix_mode: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +33,21 @@ pub struct ReplacementResult {
     backup_path: PathBuf,
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+fn replacement_receipt(
+    target: &Path,
+    expected: &ReplacementReview,
+    incoming: &FileRevision,
+) -> serde_json::Value {
+    let name = target.file_name();
+    serde_json::json!({
+        "targetName": name,
+        "targetDisplayName": name.map(|name| name.to_string_lossy()),
+        "expected": expected,
+        "incoming": incoming,
+    })
+}
+
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod atomic {
     use super::*;
@@ -48,6 +66,7 @@ mod atomic {
     const DIRECTORY: i32 = libc::O_RDONLY | libc::O_DIRECTORY;
     const READ: i32 = libc::O_RDONLY | libc::O_NONBLOCK;
     const CREATE: i32 = libc::O_RDWR | libc::O_CREAT | libc::O_EXCL;
+    const PERMISSION_BITS: u32 = 0o7777;
 
     fn status(result: libc::c_int) -> io::Result<()> {
         if result == -1 {
@@ -120,7 +139,7 @@ mod atomic {
         let current = open_at(dir, name, READ)
             .and_then(|file| file.metadata())
             .map_err(|error| error.to_string())?;
-        if !same_digest_identity(&before, &current) {
+        if !same_digest_identity(&before, &current) || before.mode() != current.mode() {
             return Err("检查时文件已变化".into());
         }
         file.seek(SeekFrom::Start(0))
@@ -136,6 +155,7 @@ mod atomic {
                     .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|duration| duration.as_millis())
                     .unwrap_or_default(),
+                unix_mode: Some(before.mode() & PERMISSION_BITS),
             },
             file,
         ))
@@ -316,7 +336,7 @@ mod atomic {
             if incoming.digest != expected.source.digest {
                 return Err("复制期间源内容已变化".into());
             }
-            let manifest = serde_json::json!({ "targetName": target.file_name(), "expected": expected, "incoming": incoming });
+            let manifest = replacement_receipt(&target, expected, &incoming);
             let receipt =
                 open_at(&stage, c"replacement.json", CREATE).map_err(|error| error.to_string())?;
             serde_json::to_writer_pretty(&receipt, &manifest).map_err(|error| error.to_string())?;
@@ -330,6 +350,19 @@ mod atomic {
                 return Err("发布前来源或目标已变化，请重新检查".into());
             }
             before_publish()?;
+            for (dir, name, reviewed) in [
+                (&source_dir, source_name.as_c_str(), &expected.source),
+                (&target_dir, target_name.as_c_str(), &expected.target),
+            ] {
+                let mode = open_at(dir, name, READ)
+                    .and_then(|file| file.metadata())
+                    .map_err(|error| error.to_string())?
+                    .mode()
+                    & PERMISSION_BITS;
+                if Some(mode) != reviewed.unix_mode {
+                    return Err("发布前文件权限已变化，请重新检查".into());
+                }
+            }
             verify_directory(source_parent, &source_dir)
                 .and_then(|_| verify_directory(destination, &target_dir))
                 .and_then(|_| verify_directory(&stage_path, &stage))
@@ -561,6 +594,49 @@ mod tests {
     }
 
     #[test]
+    fn restores_the_checked_backup_after_retaining_the_published_version() {
+        with_files(|root| {
+            let target_node = "恢复目标.md";
+            let target = root.join(target_node);
+            fs::rename(root.join("target"), &target).unwrap();
+            let expected = review(root, "source", root, target_node).unwrap();
+            let result = replace(root, "source", root, target_node, &expected, || Ok(())).unwrap();
+            let receipt: serde_json::Value = serde_json::from_reader(
+                fs::File::open(result.backup_path.with_file_name("replacement.json")).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(receipt["targetDisplayName"], target_node);
+            let original_name: std::ffi::OsString =
+                serde_json::from_value(receipt["targetName"].clone()).unwrap();
+            assert_eq!(original_name, target_node);
+            let recorded: ReplacementReview =
+                serde_json::from_value(receipt["expected"].clone()).unwrap();
+            let previous_node = result
+                .backup_path
+                .strip_prefix(root)
+                .unwrap()
+                .components()
+                .map(|part| part.as_os_str().to_str().unwrap())
+                .collect::<Vec<_>>()
+                .join("/");
+            let recovery = review(root, &previous_node, root, target_node).unwrap();
+            assert_eq!(recovery.source, recorded.target);
+            assert_eq!(recovery.target.digest, recorded.source.digest);
+
+            let retained = root.join("retained");
+            fs::rename(&target, &retained).unwrap();
+            fs::copy(&result.backup_path, &target).unwrap();
+            let restored = review(root, "source", root, target_node).unwrap();
+            assert_eq!(restored.target.digest, recorded.target.digest);
+            assert_eq!(fs::read_to_string(retained).unwrap(), "new contents");
+            assert_eq!(
+                fs::read_to_string(result.backup_path).unwrap(),
+                "old contents"
+            );
+        });
+    }
+
+    #[test]
     fn blocks_stale_target_and_cleans_only_private_staging() {
         with_files(|root| {
             let expected = review(root, "source", root, "target").unwrap();
@@ -598,6 +674,18 @@ mod tests {
         with_files(|root| {
             let expected = review(root, "source", root, "target").unwrap();
             let error = replace(root, "source", root, "target", &expected, || {
+                #[cfg(unix)]
+                assert!(std::process::Command::new("/bin/sh")
+                    .args([
+                        "-c",
+                        "printf '%s' 'external during exchange' > \"$1\"",
+                        "writer"
+                    ])
+                    .arg(root.join("target"))
+                    .status()
+                    .unwrap()
+                    .success());
+                #[cfg(windows)]
                 fs::write(root.join("target"), "external during exchange").unwrap();
                 Ok(())
             })
@@ -618,6 +706,30 @@ mod tests {
                 fs::read_to_string(root.join("target")).unwrap(),
                 "new contents"
             );
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_target_made_readonly_at_publication() {
+        use std::os::unix::fs::PermissionsExt;
+
+        with_files(|root| {
+            let target = root.join("target");
+            let expected = review(root, "source", root, "target").unwrap();
+            let error = replace(root, "source", root, "target", &expected, || {
+                fs::set_permissions(&target, fs::Permissions::from_mode(0o444)).unwrap();
+                Ok(())
+            })
+            .err()
+            .expect("the changed permissions must invalidate the review");
+            assert!(error.starts_with("REPLACEMENT_NOT_WRITTEN:"));
+            assert_eq!(fs::read_to_string(&target).unwrap(), "old contents");
+            assert_eq!(
+                fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+                0o444
+            );
+            assert_eq!(fs::read_dir(root).unwrap().count(), 2);
         });
     }
 

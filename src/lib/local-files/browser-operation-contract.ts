@@ -23,7 +23,7 @@ export interface BrowserItemResult {
 }
 export interface BrowserConflictPaths { source?: { rootId: string; node: string }; target: { rootId: string; node: string } }
 export interface ReplacementPaths { rootId: string; node: string; targetRootId: string; targetNode: string }
-interface ReplacementRevision { identity: string; digest: string; size: number; modifiedMs: number }
+interface ReplacementRevision { identity: string; digest: string; size: number; modifiedMs: number; unixMode?: number }
 export interface ReplacementReview { source: ReplacementRevision; target: ReplacementRevision }
 export type ConflictDecision = { action: "skip"; all?: boolean } | { action: "keep-both"; all?: boolean } | { action: "stop" } | { action: "rename"; name: string } | { action: "replace"; expected: ReplacementReview };
 
