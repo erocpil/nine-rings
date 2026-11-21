@@ -296,6 +296,79 @@ test("柔和配色和清雅/物哀在浏览、编辑与重启后保持一致", a
   expect(await page.evaluate(() => localStorage.getItem("nr:theme"))).toBe("original-theme");
 });
 
+test("批量重命名预览规则和隐藏项冲突，重开预设后按原队列执行", async ({ page }) => {
+  await page.addInitScript(() => {
+    const names = new Set(["Alpha.md", "Beta.md", ".reserved.md"]);
+    const writes: string[] = [];
+    Object.assign(window, { __renameWrites: writes, __TAURI_INTERNALS__: {
+      transformCallback: () => 1,
+      async invoke(command: string, args: { node: string; name: string; options?: { showHidden: boolean } }) {
+        if (command === "plugin:event|listen") return 1;
+        if (command === "workbench_window_role") return "browser";
+        if (command === "local_files_roots") return [{ id: "rename-root", name: "Rename" }];
+        if (command === "local_files_display_path") return "/fixture";
+        if (command === "local_files_list") return { nodes: [...names].filter(name => args.options?.showHidden || !name.startsWith(".")).map(name => ({ id: name, name, directory: false, size: 3 })), next: null };
+        if (command === "local_files_move") {
+          if (names.has(args.name)) throw new Error("TARGET_EXISTS");
+          names.delete(args.node); names.add(args.name); writes.push(args.name);
+          return args.name;
+        }
+      },
+    } });
+  });
+  await page.goto("/file-workbench.html");
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const reopen = async () => {
+    await left.getByRole("option", { name: /^Alpha\.md/ }).click();
+    await left.getByRole("option", { name: /^Beta\.md/ }).click({ modifiers: ["ControlOrMeta"] });
+    await page.getByRole("button", { name: "批量重命名", exact: true }).click();
+  };
+  await left.getByRole("option", { name: /^Alpha\.md/ }).click();
+  await page.getByRole("button", { name: "批量重命名", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "批量重命名", exact: true });
+  const template = dialog.getByRole("textbox", { name: "命名模板" });
+  const confirm = dialog.getByRole("button", { name: "确认", exact: true });
+  await template.fill(".reserved.md");
+  await expect(dialog.getByLabel("重命名预览")).toContainText("目标名称已被同目录项目占用");
+  await expect(confirm).toBeDisabled();
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+
+  await reopen();
+  await dialog.getByRole("combobox", { name: "查找方式" }).selectOption("regex");
+  await dialog.getByRole("textbox", { name: "查找", exact: true }).fill("(");
+  await expect(dialog.getByRole("alert")).toContainText("正则表达式无效");
+  await expect(confirm).toBeDisabled();
+  await dialog.getByRole("textbox", { name: "查找", exact: true }).fill("^([A-Z])");
+  await dialog.getByRole("textbox", { name: "替换为" }).fill("$1-");
+  await dialog.getByRole("combobox", { name: "大小写" }).selectOption("lower");
+  await template.fill("{n}-{name}{ext}");
+  await dialog.getByRole("spinbutton", { name: "起始编号" }).fill("7");
+  await dialog.getByRole("spinbutton", { name: "编号位数" }).fill("3");
+  await expect(dialog.getByLabel("重命名预览")).toContainText("007-a-lpha.md");
+  await dialog.getByRole("textbox", { name: "预设名称" }).fill("文档编号");
+  await dialog.getByRole("button", { name: "保存预设" }).click();
+  await expect(dialog.getByRole("status")).toContainText("已保存重命名预设");
+  expect(await page.evaluate(() => (window as any).__renameWrites)).toEqual([]);
+
+  await page.reload();
+  await page.getByRole("button", { name: "配色", exact: true }).click();
+  await page.getByRole("menuitem", { name: /柔和深色$/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "dark");
+  await reopen();
+  await dialog.getByRole("combobox", { name: "重命名预设" }).selectOption("文档编号");
+  await expect(dialog.getByLabel("重命名预览")).toContainText("008-b-eta.md");
+  await dialog.getByRole("spinbutton", { name: "编号位数" }).fill("4");
+  await dialog.getByRole("button", { name: "更新预设" }).click();
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await reopen();
+  await dialog.getByRole("combobox", { name: "重命名预设" }).selectOption("文档编号");
+  await expect(dialog.getByLabel("重命名预览")).toContainText("0008-b-eta.md");
+  await dialog.getByRole("button", { name: "删除预设" }).click();
+  await expect(dialog.getByRole("option", { name: "文档编号" })).toHaveCount(0);
+  await confirm.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__renameWrites)).toEqual(["0007-a-lpha.md", "0008-b-eta.md"]);
+});
+
 test("桌面目录复制、重命名和移动走确认队列，运行中不退出，恢复草稿阻止路径变更", async ({ page }) => {
   await page.addInitScript(() => {
     const callbacks = new Map<number, (event: unknown) => void>(); let sequence = 1, close = 0;

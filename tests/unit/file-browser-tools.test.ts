@@ -1,5 +1,10 @@
 import { expect, it, vi } from "vitest";
 import {
+  defaultBrowserRenameRules,
+  markBrowserRenameConflicts,
+  previewBrowserRename,
+} from "../../src/lib/local-files/browser-rename";
+import {
   addBrowserTab,
   activeBrowserPanes,
   parseBrowserWorkspace,
@@ -115,6 +120,51 @@ it("previews numbered rename templates while preserving extensions and rejecting
     "重复",
   );
   expect(() => planBrowserRename(["a.c"], "{n}", NaN)).toThrow();
+});
+it("composes replacements, basename casing and padded numbers in selection order", () => {
+  const rules = {
+    ...defaultBrowserRenameRules,
+    match: "regex" as const,
+    find: "^(Draft)([0-9]+)$",
+    replacement: "$1-$2",
+    letterCase: "lower" as const,
+    template: "{n}-{name}{ext}",
+    start: 9,
+    padding: 2,
+  };
+  expect(
+    previewBrowserRename(["Draft2.MD", ".Draft"], rules).map(
+      ({ next }) => next,
+    ),
+  ).toEqual(["09-draft-2.MD", "10-.draft"]);
+  expect(
+    previewBrowserRename(["Draft2.MD"], {
+      ...rules,
+      match: "text",
+      find: "Draft",
+      replacement: "$1",
+    })[0].next,
+  ).toBe("09-$12.MD");
+  expect(() =>
+    previewBrowserRename(["Draft2.MD"], { ...rules, find: "(" }),
+  ).toThrow("正则表达式无效");
+});
+it("marks both duplicate targets and known sibling collisions, while permitting case-only changes", () => {
+  const rules = { ...defaultBrowserRenameRules, letterCase: "lower" as const };
+  const plan = previewBrowserRename(["src/A.c", "src/B.c"], rules);
+  expect(plan.map((item) => item.error)).toEqual([undefined, undefined]);
+  expect(
+    markBrowserRenameConflicts(plan, [
+      { name: "A.c", id: "src/A.c", directory: false, size: 1 },
+      { name: "b.c", id: "src/b.c", directory: true, size: 0 },
+    ]).map((item) => item.error),
+  ).toEqual([undefined, "目标名称已被同目录项目占用"]);
+  expect(
+    previewBrowserRename(["a.c", "b.c"], {
+      ...rules,
+      template: "duplicate{ext}",
+    }).map((item) => item.error),
+  ).toEqual(["目标名称重复", "目标名称重复"]);
 });
 const file = (name: string, directory = false): FileNode => ({
   id: name,

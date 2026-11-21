@@ -295,3 +295,10 @@
 
 .file-browser-splitter { user-select: none; -webkit-user-select: none; outline: none; }
 .file-browser-splitter:focus-visible { outline: none; box-shadow: none; }
+
+.file-browser-rename-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.file-browser-rename-grid label { margin-block: 4px; }
+.file-browser-rename-grid :is(input, select) { min-width: 0; }
+.file-browser-rename-grid select { padding: 7px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px; font: inherit; }
+.file-browser-rename-preset-actions { display: flex; gap: 8px; margin-block: 8px; }
+.file-browser-rename-preview p { overflow-wrap: anywhere; }

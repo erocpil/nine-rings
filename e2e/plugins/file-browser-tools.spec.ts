@@ -105,13 +105,15 @@ test("批量重命名先预览，再按选中顺序执行且保留扩展名", as
   await expect(dialog.getByRole("button", { name: "确认", exact: true })).toBeDisabled();
   await dialog.getByRole("textbox", { name: "命名模板", exact: true }).fill("{n}-{name}{ext}");
   await expect(dialog.getByLabel("重命名预览", { exact: true })).toContainText("a.c → 1-a.c");
+  await dialog.getByRole("spinbutton", { name: "编号位数", exact: true }).fill("2");
+  await expect(dialog.getByLabel("重命名预览", { exact: true })).toContainText("a.c → 01-a.c");
   await expect(left.getByRole("option", { name: /^a.c/ })).toHaveCount(1);
   await dialog.getByRole("button", { name: "确认", exact: true }).click();
   dialog = page.getByRole("dialog", { name: "文件操作队列", exact: true });
   await expect(dialog.getByRole("status")).toContainText("成功 2 项");
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
-  await expect(left.getByRole("option", { name: /^1-a.c/ })).toBeVisible();
-  await expect(left.getByRole("option", { name: /^2-b.c/ })).toBeVisible();
+  await expect(left.getByRole("option", { name: /^01-a.c/ })).toBeVisible();
+  await expect(left.getByRole("option", { name: /^02-b.c/ })).toBeVisible();
 });
 
 test("列表增量定位、范围选择和预览快捷键保留当前项与多选反馈", async ({ page }) => {

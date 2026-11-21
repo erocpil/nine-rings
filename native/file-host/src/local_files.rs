@@ -754,10 +754,24 @@ fn move_entry(root: &Path, node: &str, parent: &str, name: &str) -> Result<Strin
         return Err("不能移动到自身或其子目录".into());
     }
     let target = destination.join(name);
-    if fs::symlink_metadata(&target).is_ok() {
+    // A case-insensitive volume may already resolve the new spelling to the
+    // source. Let the exclusive rename distinguish that from another entry.
+    let case_only = source != target
+        && source.parent() == Some(destination.as_path())
+        && source
+            .file_name()
+            .and_then(|part| part.to_str())
+            .is_some_and(|part| part.to_lowercase() == name.to_lowercase());
+    if !case_only && fs::symlink_metadata(&target).is_ok() {
         return Err("目标名称已存在，未覆盖".into());
     }
-    move_exclusive(&source, &target).map_err(|e| e.to_string())?;
+    move_exclusive(&source, &target).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            "目标名称已存在，未覆盖".into()
+        } else {
+            error.to_string()
+        }
+    })?;
     Ok(if parent.is_empty() {
         name.into()
     } else {
@@ -2824,6 +2838,35 @@ mod tests {
             assert!(create_entry(&dir, "link", "escape", false).is_err());
         }
         fs::remove_dir_all(dir).unwrap();
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[test]
+    fn case_only_move_updates_the_directory_entry_without_replacing_a_distinct_file() {
+        let fixture = TransferFixture::new();
+        let root = fixture.0.join("dest");
+        let upper = root.join("EXAMPLE.txt");
+        let lower = root.join("example.txt");
+        fs::write(&upper, "source").unwrap();
+        if !lower.exists() {
+            fs::write(&lower, "other").unwrap();
+            assert!(move_entry(&root, "EXAMPLE.txt", "", "example.txt").is_err());
+            assert_eq!(fs::read_to_string(&lower).unwrap(), "other");
+            fs::remove_file(&lower).unwrap();
+        }
+        assert_eq!(
+            move_entry(&root, "EXAMPLE.txt", "", "example.txt").unwrap(),
+            "example.txt"
+        );
+        assert_eq!(fs::read_to_string(&lower).unwrap(), "source");
+        assert_eq!(
+            fs::read_dir(&root)
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap()
+                .file_name(),
+            "example.txt"
+        );
     }
     #[test]
     fn scope_paging_and_text_limits() {
