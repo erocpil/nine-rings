@@ -2735,6 +2735,29 @@ test("Markdown 相对图片在快速预览中随来源目录切换", async ({ pa
   }
 });
 
+test("Markdown 快速预览沿授权目录链接打开完整编辑器并定位章节", async ({ page }, testInfo) => {
+  const root = testInfo.outputPath("markdown-preview-links");
+  await mkdir(join(root, "notes"), { recursive: true });
+  await writeFile(join(root, "notes", "index.md"), "[越界](../../outside.md)\n\n[查看章节](../guide.md#目标章节)");
+  await writeFile(join(root, "guide.md"), [
+    "# Library",
+    ...Array.from({ length: 45 }, (_, index) => `段落 ${index} ` + "用于验证跳转后的滚动位置。".repeat(6)),
+    "## 目标章节",
+    "Destination",
+  ].join("\n\n"));
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(root);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await left.getByRole("option", { name: /^notes/ }).dblclick();
+  await left.getByRole("option", { name: /^index.md/ }).click();
+  await page.getByRole("button", { name: "快速预览", exact: true }).click();
+  const preview = page.getByRole("region", { name: "快速预览", exact: true });
+  await preview.getByRole("link", { name: "越界" }).click();
+  await expect(preview.getByRole("status")).toContainText("授权");
+  await preview.getByRole("link", { name: "查看章节" }).click();
+  await expect(page.locator(".workbench-rendered-session:visible").getByRole("heading", { name: "目标章节" })).toBeInViewport();
+});
+
 test("Markdown 链接跨标签定位章节，保留未保存正文并支持后退前进", async ({ page }) => {
   const note = "practice/education/lesson.md";
   const intro = Array.from({ length: 70 }, (_, index) => `段落 ${index}。`).join("\n\n");

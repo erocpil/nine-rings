@@ -14,7 +14,7 @@ export function localDirectoryProvider(owner: PluginActivation) {
   return createBrowserDirectoryProvider({
     files: localFileService,
     assertActive: () => pluginRuntime.assert(owner, "filesystem.files.read"),
-    async open({ rootId, rootName, node, location }, signal) {
+    async open({ rootId, rootName, node, location, headingFragment }, signal) {
       check(signal);
       const current = mainViews.getSnapshot().current;
       if (current?.renderer === "local-file") await checkpointLocalFile(`${current.data.rootId}:${current.data.nodeId}`);
@@ -27,7 +27,7 @@ export function localDirectoryProvider(owner: PluginActivation) {
       } else {
         const identity = `${rootId}:${node.id}`, tabs = readLocalFocusTabs();
         if (tabs.closed.includes(identity)) saveLocalFocusTabs({ closed: tabs.closed.filter(id => id !== identity), order: [...tabs.order.filter(id => id !== identity), identity] });
-        mainViews.bind(owner).open(FILE_BROWSER_FILE_VIEW_ID, { rootId, nodeId: node.id, name: node.name, ...(location ? { location } : {}) });
+        mainViews.bind(owner).open(FILE_BROWSER_FILE_VIEW_ID, { rootId, nodeId: node.id, name: node.name, ...(location ? { location } : {}), ...(headingFragment ? { headingFragment } : {}) });
         rememberRecentLocalFile({ rootId, rootName, nodeId: node.id, name: node.name });
       }
     },

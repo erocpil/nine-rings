@@ -70,6 +70,19 @@ export function FileBrowserQuickPreview({ rootId, node, provider, active, revisi
     setRenderMarkdown(value); closeFind();
   };
   const closeFind = () => { setFindOpen(false); host.current?.focus({ preventScroll: true }); };
+  const openMarkdownLink = async (href: string) => {
+    const controller = request.current;
+    if (!node || !controller || controller.signal.aborted || opening) return;
+    setOpening(true);
+    setNavigationMessage("");
+    try {
+      await provider.openMarkdownLink(rootId, node, href, controller.signal);
+    } catch (cause) {
+      if (!controller.signal.aborted) setNavigationMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      if (!controller.signal.aborted) setOpening(false);
+    }
+  };
   return <section ref={host} tabIndex={0} className="file-browser-quick-preview" aria-label="快速预览" onKeyDown={event => {
     if (event.defaultPrevented || event.nativeEvent.isComposing) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f" && preview?.kind === "text") { event.preventDefault(); event.stopPropagation(); find(); return; }
@@ -92,6 +105,6 @@ export function FileBrowserQuickPreview({ rootId, node, provider, active, revisi
     {(error || cancelled) && <><p role="status">{cancelled ? "已中断预览加载。" : `此文件暂时无法内置预览，可使用其它应用打开。${error && error !== "unsupported" ? ` ${error}` : ""}`}</p>{node && <FileBrowserFileDetails rootId={rootId} node={node} provider={provider} />}</>}
     {navigationMessage && <p role="status">{navigationMessage}</p>}
     {!node && <p>在另一栏选择一个文件。</p>}
-    {preview?.kind === "epub" ? <Suspense fallback={<p role="status">正在加载 EPUB 预览…</p>}><EpubPreview onEscape={closeLabel === "关闭快速预览" ? onClose : undefined} key={`${rootId}:${node}`} blob={preview.value} identity={JSON.stringify([rootId, node])} settings={settings} fallback={<FileBrowserFileDetails rootId={rootId} node={node!} provider={provider} />} /></Suspense> : preview?.kind === "pdf" ? <Suspense fallback={<p role="status">正在加载 PDF 预览…</p>}><PdfPreview key={`${rootId}:${node}`} blob={preview.value} identity={JSON.stringify([rootId, node])} settings={settings} fallback={<FileBrowserFileDetails rootId={rootId} node={node!} provider={provider} />} /></Suspense> : preview?.kind === "text" && markdown && renderMarkdown && !findOpen ? <Suspense fallback={<p role="status">正在加载 Markdown 预览…</p>}><MarkdownPreview key={JSON.stringify([rootId, node, revision])} source={preview.value} rootId={rootId} node={node!} provider={provider} position={positions.current.rendered} /></Suspense> : preview?.kind === "image" ? <FileBrowserPreviewImage key={`${rootId}:${node}`} src={preview.value} name={node?.split("/").pop() ?? "预览"} onCancel={() => { request.current?.abort(); setPreview(null); setCancelled(true); }} onUnavailable={() => { request.current?.abort(); setPreview(null); setError("unsupported"); }} /> : preview?.kind === "text" && !markdown ? <Suspense fallback={<p role="status">正在加载只读文本浏览器…</p>}><TextReader key={`${rootId}:${node}`} identity={JSON.stringify([rootId, node])} name={node?.split("/").pop() ?? "Text"} source={preview.value} settings={settings} toolsTarget={textTools} onReady={bindReader} searchSession={searchSession} /></Suspense> : preview && <FileBrowserPreviewText position={markdown ? positions.current.source : undefined} wrap={wrap} source={preview.value} query={query} onQuery={setQuery} matchCase={matchCase} onCase={setMatchCase} findOpen={findOpen} onCloseFind={closeFind} />}
+    {preview?.kind === "epub" ? <Suspense fallback={<p role="status">正在加载 EPUB 预览…</p>}><EpubPreview onEscape={closeLabel === "关闭快速预览" ? onClose : undefined} key={`${rootId}:${node}`} blob={preview.value} identity={JSON.stringify([rootId, node])} settings={settings} fallback={<FileBrowserFileDetails rootId={rootId} node={node!} provider={provider} />} /></Suspense> : preview?.kind === "pdf" ? <Suspense fallback={<p role="status">正在加载 PDF 预览…</p>}><PdfPreview key={`${rootId}:${node}`} blob={preview.value} identity={JSON.stringify([rootId, node])} settings={settings} fallback={<FileBrowserFileDetails rootId={rootId} node={node!} provider={provider} />} /></Suspense> : preview?.kind === "text" && markdown && renderMarkdown && !findOpen ? <Suspense fallback={<p role="status">正在加载 Markdown 预览…</p>}><MarkdownPreview key={JSON.stringify([rootId, node, revision])} source={preview.value} rootId={rootId} node={node!} provider={provider} position={positions.current.rendered} onOpenLink={href => void openMarkdownLink(href)} /></Suspense> : preview?.kind === "image" ? <FileBrowserPreviewImage key={`${rootId}:${node}`} src={preview.value} name={node?.split("/").pop() ?? "预览"} onCancel={() => { request.current?.abort(); setPreview(null); setCancelled(true); }} onUnavailable={() => { request.current?.abort(); setPreview(null); setError("unsupported"); }} /> : preview?.kind === "text" && !markdown ? <Suspense fallback={<p role="status">正在加载只读文本浏览器…</p>}><TextReader key={`${rootId}:${node}`} identity={JSON.stringify([rootId, node])} name={node?.split("/").pop() ?? "Text"} source={preview.value} settings={settings} toolsTarget={textTools} onReady={bindReader} searchSession={searchSession} /></Suspense> : preview && <FileBrowserPreviewText position={markdown ? positions.current.source : undefined} wrap={wrap} source={preview.value} query={query} onQuery={setQuery} matchCase={matchCase} onCase={setMatchCase} findOpen={findOpen} onCloseFind={closeFind} />}
   </section>;
 }

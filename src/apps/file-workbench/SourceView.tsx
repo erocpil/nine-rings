@@ -516,12 +516,23 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   };
   const showMissingFragment = (fragment: string) => setLinkNotice({ message: `找不到标题或锚点“${fragment}”。`, offerStart: true });
   const consumedLink = useRef<number>();
+  const consumedOpenFragment = useRef<string>();
   const applyLinkRequest = useRef<() => void>(() => {});
   applyLinkRequest.current = () => {
-    if (!active || !base || !linkRequest || consumedLink.current === linkRequest.serial) return;
+    if (!active || !base) return;
+    const ready = renderMarkdown ? renderedLinkReady : Boolean(handle.current);
+    if (!linkRequest || consumedLink.current === linkRequest.serial) {
+      if (!ready || !file.headingFragment) return;
+      const token = `${navigationRequest ?? 0}\0${file.headingFragment}`;
+      if (consumedOpenFragment.current === token) return;
+      consumedOpenFragment.current = token;
+      setLinkNotice(undefined);
+      if (!jumpToFragment(file.headingFragment)) showMissingFragment(file.headingFragment);
+      return;
+    }
     const saved = linkRequest.position;
     if (saved && saved.rendered !== renderMarkdown) { changePreviewMode(saved.rendered); return; }
-    if (renderMarkdown ? !renderedLinkReady : !handle.current) return;
+    if (!ready) return;
     consumedLink.current = linkRequest.serial;
     if (saved) {
       if (renderMarkdown) {
@@ -543,7 +554,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   useEffect(() => {
     const frame = requestAnimationFrame(() => applyLinkRequest.current());
     return () => cancelAnimationFrame(frame);
-  }, [active, base, linkRequest, renderMarkdown, renderedLinkReady, linkSourceReady]);
+  }, [active, base, linkRequest, renderMarkdown, renderedLinkReady, linkSourceReady, file.headingFragment, navigationRequest]);
   const historyControls = onLinkHistory && linkHistory ? <span className="workbench-link-navigation">
     <button type="button" className="btn-icon" title="链接后退" aria-label="链接后退" disabled={!linkHistory.back} onClick={() => onLinkHistory(-1, capturePosition(), requestClose)}><ToolbarIcon name="chevronLeft" /></button>
     <button type="button" className="btn-icon" title="链接前进" aria-label="链接前进" disabled={!linkHistory.forward} onClick={() => onLinkHistory(1, capturePosition(), requestClose)}><ToolbarIcon name="chevronRight" /></button>

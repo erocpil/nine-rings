@@ -69,6 +69,7 @@ impl Session {
         }
         if let Some(existing) = self.files.iter_mut().find(|item| item.id == file.id) {
             existing.file["location"] = file.file["location"].clone();
+            existing.file["headingFragment"] = file.file["headingFragment"].clone();
             existing.open_revision += 1;
         } else {
             if self.files.len() >= 32 {
@@ -201,11 +202,14 @@ pub async fn workbench_open_editor(
     root_id: String,
     node: String,
     location: Option<Location>,
+    heading_fragment: Option<String>,
 ) -> Result<(), String> {
     // Tauri documents WebView2 deadlocks for synchronous window creation.
-    tauri::async_runtime::spawn_blocking(move || open_editor(window, app, root_id, node, location))
-        .await
-        .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        open_editor(window, app, root_id, node, location, heading_fragment)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 fn open_editor(
     window: tauri::WebviewWindow,
@@ -213,6 +217,7 @@ fn open_editor(
     root_id: String,
     node: String,
     location: Option<Location>,
+    heading_fragment: Option<String>,
 ) -> Result<(), String> {
     super::main_window(&window)?;
     if let Some(location) = &location {
@@ -220,7 +225,14 @@ fn open_editor(
             return Err("无效的文件定位".into());
         }
     }
-    let file = disk_editor_file(window, &app, root_id, node, location)?;
+    if heading_fragment
+        .as_ref()
+        .is_some_and(|fragment| fragment.is_empty() || fragment.encode_utf16().count() > 4096)
+    {
+        return Err("无效的标题或锚点".into());
+    }
+    let mut file = disk_editor_file(window, &app, root_id, node, location)?;
+    file.file["headingFragment"] = json!(heading_fragment);
     publish_file(&app, file, true)
 }
 
@@ -387,8 +399,10 @@ fn publish_restored_file(
                 .is_some_and(|path| path == file.id)
         }) {
             let location = file.file["location"].clone();
+            let heading_fragment = file.file["headingFragment"].clone();
             file = existing.clone();
             file.file["location"] = location;
+            file.file["headingFragment"] = heading_fragment;
         }
     }
     // The creation mutex serializes publication while WebView construction runs off the UI thread.
@@ -862,6 +876,18 @@ mod tests {
         state.close("a").unwrap();
         assert_eq!(state.current.as_deref(), Some("b"));
         assert!(state.close("a").is_err());
+    }
+    #[test]
+    fn duplicate_open_updates_the_transient_heading_destination() {
+        let mut state = Session::default();
+        state.open(file("a")).unwrap();
+        let mut targeted = file("a");
+        targeted.file["headingFragment"] = json!("目标章节");
+        state.open(targeted).unwrap();
+        assert_eq!(state.files[0].open_revision, 2);
+        assert_eq!(state.files[0].file["headingFragment"], "目标章节");
+        state.open(file("a")).unwrap();
+        assert!(state.files[0].file["headingFragment"].is_null());
     }
     #[test]
     fn closing_and_capacity_do_not_admit_new_sessions() {

@@ -33,7 +33,7 @@ export const editorWindowPort: WorkbenchEditorPort = {
   relocationReply: (token, revision, reason) => invoke("workbench_editor_relocation_reply", { token, revision: revision ?? null, reason: reason ?? null }),
   relocationPreferencesDone: (id, from) => invoke("workbench_editor_relocation_preferences_done", { id, from }),
 };
-export const openWorkbenchEditor = (file: BrowserFileOpen) => invoke<void>("workbench_open_editor", { rootId: file.rootId, node: file.node.id, location: file.location ?? null });
+export const openWorkbenchEditor = (file: BrowserFileOpen) => invoke<void>("workbench_open_editor", { rootId: file.rootId, node: file.node.id, location: file.location ?? null, ...(file.headingFragment ? { headingFragment: file.headingFragment } : {}) });
 export const readWorkbenchLinkOrigin = (sourceId: string) =>
   invoke<{ rootId: string; node: string } | null>("workbench_editor_link_origin", { sourceId });
 export const showWorkbenchEditor = () => invoke<void>("workbench_show_editor");

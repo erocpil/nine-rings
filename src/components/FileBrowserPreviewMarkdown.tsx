@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { captureRenderedPreview, invalidatePreviewAnchors, restoreRenderedPreview } from "../lib/preview-scroll-position";
 import { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import type { PreviewScrollPosition } from "../lib/local-files/browser-preview";
@@ -8,8 +8,8 @@ import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useLocalMarkdownImages } from "../hooks/useLocalMarkdownImages";
 import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 
-export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, autoFocus = false, position }: {
-  source: string; rootId: string; node: string; provider: BrowserDirectoryProvider; autoFocus?: boolean; position?: PreviewScrollPosition;
+export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, autoFocus = false, position, onOpenLink }: {
+  source: string; rootId: string; node: string; provider: BrowserDirectoryProvider; autoFocus?: boolean; position?: PreviewScrollPosition; onOpenLink: (href: string) => void;
 }) {
   const previewImage = useLocalMarkdownImages(provider, rootId, node);
   const revision = useMemo(() => SourceNavigationDocument.from(source, { ops: [] }), [source]);
@@ -25,7 +25,6 @@ export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, aut
   }, [position, revision, source.length]);
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => { if (autoFocus) host.current?.querySelector<HTMLElement>(".markdown-preview-scroll")?.focus({ preventScroll: true }); }, [autoFocus]);
-  const [notice, setNotice] = useState("");
   const area = useRef<SourceEditorHandle>(null);
   return <DocumentImageLibraryContext.Provider value={false}><DocumentResourceContext.Provider value={previewImage}><div ref={host} className="file-browser-markdown-preview" onScrollCapture={event => {
     const element = event.target as HTMLElement;
@@ -34,7 +33,7 @@ export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, aut
     const link = (event.target as Element).closest<HTMLAnchorElement>("a[href]");
     const href = link?.getAttribute("href");
     if (href && !href.startsWith("#") && !/^(https?:|mailto:|tel:)/i.test(href)) {
-      event.preventDefault(); event.stopPropagation(); setNotice("请从文件列表打开本地链接；预览不会跳离当前文件。");
+      event.preventDefault(); event.stopPropagation(); onOpenLink(href);
     }
-  }}>{notice && <p role="status">{notice}</p>}<MarkdownSplitPreview revision={revision} areaRef={area} enabled sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false}>{null}</MarkdownSplitPreview></div></DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>;
+  }}><MarkdownSplitPreview revision={revision} areaRef={area} enabled sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false}>{null}</MarkdownSplitPreview></div></DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>;
 }

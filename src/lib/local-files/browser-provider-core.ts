@@ -2,6 +2,7 @@ import { isBrowserImagePath, releaseBrowserPreview } from "./browser-preview";
 import type { BrowserDirectoryHost, BrowserDirectoryProvider, BrowserPreview } from "./browser-contract";
 import { MAX_SOURCE_BYTES } from "./file-model";
 import type { LocalFileListOptions } from "./tree";
+import { localMarkdownLink } from "./markdown-links";
 
 /** One read/preview/compare implementation for every application host. */
 export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): BrowserDirectoryProvider {
@@ -63,6 +64,18 @@ export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): Brow
     async open(rootId, rootName, node, signal, location, siblings) {
       check(signal);
       await host.open({ rootId, rootName, node, ...(location ? { location } : {}), ...(siblings ? { siblings } : {}) }, signal);
+    },
+    async openMarkdownLink(rootId, from, href, signal) {
+      check(signal);
+      const { node, fragment } = localMarkdownLink(from, href);
+      if (fragment && fragment.length > 4096) throw new Error("标题或锚点过长");
+      const details = await host.files.stat(rootId, node);
+      check(signal);
+      await host.open({
+        rootId, rootName: "本地文件",
+        node: { ...details, id: node, name: node.split("/").pop()!, directory: false },
+        ...(fragment ? { headingFragment: fragment } : {}),
+      }, signal);
     },
   };
 }

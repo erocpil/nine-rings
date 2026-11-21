@@ -3,7 +3,7 @@ import type { LocalFileListOptions } from "./tree";
 
 export type BrowserPreview = { kind: "text" | "image"; value: string; truncated: boolean } | { kind: "pdf"; value: Blob; truncated: false } | { kind: "epub"; value: Blob; truncated: false };
 export interface BrowserTextLocation { from: number; to: number; revision: string }
-export interface BrowserFileOpen { rootId: string; rootName: string; node: FileNode; location?: BrowserTextLocation; siblings?: readonly FileNode[] }
+export interface BrowserFileOpen { rootId: string; rootName: string; node: FileNode; location?: BrowserTextLocation; headingFragment?: string; siblings?: readonly FileNode[] }
 
 /** Trusted host ports, not a third-party permission grant. Implementations must
  * enforce their own root authorization and presentation/save boundaries. */
@@ -34,4 +34,5 @@ export interface BrowserDirectoryProvider {
   details?(rootId: string, node: string, signal: AbortSignal): Promise<LocalFileDetails>;
   properties(rootId: string, node: string, signal: AbortSignal): Promise<LocalFileFingerprint>;
   open(rootId: string, rootName: string, node: FileNode, signal: AbortSignal, location?: BrowserTextLocation, siblings?: readonly FileNode[]): Promise<void>;
+  openMarkdownLink(rootId: string, from: string, href: string, signal: AbortSignal): Promise<void>;
 }

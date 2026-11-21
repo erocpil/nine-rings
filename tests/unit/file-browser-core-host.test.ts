@@ -42,6 +42,36 @@ function host(label: string) {
   };
 }
 
+it("opens only a resolved Markdown destination in the same authorized root", async () => {
+  const { port } = host("root");
+  const provider = createBrowserDirectoryProvider(port);
+  const signal = new AbortController().signal;
+  await expect(
+    provider.openMarkdownLink(
+      "root",
+      "docs/note.md",
+      "../../outside.md",
+      signal,
+    ),
+  ).rejects.toThrow();
+  expect(port.files.stat).not.toHaveBeenCalled();
+  await provider.openMarkdownLink(
+    "root",
+    "docs/note.md",
+    "../guide.md#%E7%AB%A0%E8%8A%82",
+    signal,
+  );
+  expect(port.files.stat).toHaveBeenCalledWith("root", "guide.md");
+  expect(port.open).toHaveBeenCalledWith(
+    expect.objectContaining({
+      rootId: "root",
+      node: expect.objectContaining({ id: "guide.md" }),
+      headingFragment: "章节",
+    }),
+    signal,
+  );
+});
+
 it("uses one provider implementation with isolated hosts and no application globals", async () => {
   const a = host("first"),
     b = host("second"),

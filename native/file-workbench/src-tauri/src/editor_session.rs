@@ -260,6 +260,7 @@ impl EditorSessionStore {
         for file in &mut retained {
             if let Some(value) = file.file.as_object_mut() {
                 value.remove("location");
+                value.remove("headingFragment");
             }
         }
         let value = Snapshot {
