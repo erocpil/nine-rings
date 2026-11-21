@@ -1,6 +1,23 @@
 # File Workbench 后续产品优化待办
 
-更新：2026-11-20
+更新：2026-11-22
+
+## 同类产品对照与功能优先级
+
+Workbench 已有模板式批量重命名和逐项预览、可配置快捷键、多目录区、固定标签、递归目录比较、正文搜索和独立 Markdown 编辑器。排序优先考虑现有工作流的收益和复用程度。难度是基于当前实现的相对估算，主要取决于文件写入、跨平台行为和异常恢复。现有入口见[批量重命名](../../src/components/FileBrowserOperationDialog.tsx)和[目录比较](../../src/components/FileBrowserComparison.tsx)。
+
+| 顺序 | 功能 | 重要程度 | 实现难度 | 第一阶段范围和参考 |
+| --- | --- | --- | --- | --- |
+| 1 | 批量重命名规则和预设 | 高 | 中 | 在现有模板上加查找替换、正则、大小写转换和编号补零。保存常用规则，逐项预览变更、同名冲突和无法执行的原因。确认后进入现有队列。[Total Commander](https://www.ghisler.com/featurel.htm) · [QSpace](https://qspace.awehunt.com/en-us/index.html) |
+| 2 | 统一命令面板与快速跳转 | 高 | 中低 | 同一入口查找文件操作、固定目录、最近目录和自定义工具。结果显示快捷键、作用栏和禁用原因，执行时调用已有命令。[Marta](https://marta.sh/docs/core/actions/) · [ForkLift](https://www.binarynights.com/) |
+| 3 | 目录比较结果转为操作计划 | 高 | 中高 | 从比较结果勾选差异，生成左到右或右到左的复制计划。先展示待复制、冲突和未知项，经确认后入队。镜像删除和双向同步另行评估。[ForkLift](https://www.binarynights.com/) · [Krusader](https://krusader.org/) |
+| 4 | 双文件差异查看 | 中高 | 中 | 从目录比较打开左右文本的只读逐行差异，并可跳到对应行。同一查看方式也可用于核对编辑器的外部修改冲突。[Krusader](https://krusader.org/) · [Beyond Compare](https://www.scootersoftware.com/v5help/) |
+| 5 | 跨目录文件暂存架 | 中高 | 中 | 从多个目录收集文件引用，选定目标后统一复制或移动。入队前复核路径和授权，并标明失效条目及原因。[QSpace](https://qspace.awehunt.com/en-us/index.html) · [Path Finder](https://cocoatech.io/) |
+| 6 | 命名工作区与布局恢复 | 中 | 中 | 将现有双栏、多目录区及标签保存为可切换的命名工作区，复用布局持久化和授权恢复逻辑。[QSpace](https://qspace.awehunt.com/en-us/index.html) · [Directory Opus](https://docs.dopus.com/doku.php?id=basic_concepts:the_lister) |
+| 7 | 压缩包作为只读目录 | 中 | 中高 | 先支持 ZIP 内浏览、预览及选中条目解压。包内编辑涉及整包写回与外部修改核验，留待后续。[Double Commander](https://doublecmd.github.io/doc/en/about.html) · [Commander One](https://commander-one.com/) |
+| 8 | 远程文件位置 | 取决于用户需求 | 高 | 有明确需求时先评估 SFTP 浏览、下载和上传。远程就地编辑、同步及云存储需要另行设计凭据、断线处理与修订核验。[ForkLift](https://www.binarynights.com/) |
+
+先推进第 1、2 项。批量重命名可利用现有预览和队列产生直接收益，命令面板能让已有功能更容易找到。随后推进第 3 项，从比较结果交付可核对的单向复制计划，再根据使用反馈决定是否扩展同步。
 
 ## 2026-11-18 编辑连续性与边界
 
