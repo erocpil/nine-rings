@@ -10,6 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useId, useImperativeHandle, us
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, localFileLinkLabel, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/file-model";
 import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
+import { FileEntryIcon } from "./FileEntryIcon";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { browserNavigationIndex, browserRowScroll, browserTypeahead, type BrowserTypeahead } from "../lib/local-files/browser-keyboard";
 import { FileBrowserLocations } from "./FileBrowserLocations";
@@ -449,14 +450,14 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       }
     }}>
       <div style={{ height: start * ROW }} aria-hidden="true" />
-      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} data-directory={item.directory} draggable={!item.link && !loading && workspace.canTransfer()} onDragStart={event => {
+      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} aria-description={item.link ? localFileLinkLabel[item.link] : undefined} data-current={focused === item.id} data-node-id={item.id} data-directory={item.directory} draggable={!item.link && !loading && workspace.canTransfer()} onDragStart={event => {
         if (loading || loadedKey.current !== key) { event.preventDefault(); return; }
         const selection = selectedSet.has(item.id) ? selected : [item.id];
         if (hasLink(selection)) { event.preventDefault(); return; }
         if (!selectedSet.has(item.id)) chooseItem(item);
         onDragStart(event, selection);
       }} onDragEnd={() => { setDrop(null); onDragEnd(); }} data-tooltip-path={hintPath?.rootId === rootId && hintPath.node === node ? browserFullPath(hintPath.path, item.name) : undefined} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key || (event.ctrlKey && isMacPlatform())) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={event => { if (!loading && loadedKey.current === key) openItem(item, !isPrimaryShortcutModifier(event)); }}>
-        <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span>{item.link && <small className="file-link-badge">{localFileLinkLabel[item.link]}</small>}</span>
+        <span className={`file-browser-name${item.directory || item.link === "directory" ? " is-directory" : ""}`}><FileEntryIcon item={item} /><span className="file-browser-name-text">{item.name}</span></span>
         {compact && display.type && <span className="file-browser-type">{localFileTypeLabel(item)}</span>}
         {display.size && <span aria-label={item.directory ? "目录内部大小尚未统计" : undefined}>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>}
         {display.modified && <span data-browser-column="modified">{browserDateText(metadata[item.id]?.modifiedMs ?? item.modifiedMs, display.dateFormat)}</span>}

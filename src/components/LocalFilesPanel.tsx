@@ -24,6 +24,7 @@ import { LocalFileOperationDialog, type LocalFileOperation } from "./LocalFileOp
 import { LocalFileDrafts } from "./LocalFileDrafts";
 import { LocalFileSearch } from "./LocalFileSearch";
 import type { LocalFileSearchHit } from "../lib/local-files/search";
+import { FileEntryIcon } from "./FileEntryIcon";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { copyToClipboard } from "../lib/clipboard";
 import { pathDirName } from "../lib/path-utils";
@@ -674,6 +675,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
                 type="button"
                 className="local-file-row"
                 data-local-file-id={childKey}
+                aria-description={child.link ? localFileLinkLabel[child.link] : undefined}
                 style={{ paddingInlineStart: 12 + depth * 14 }}
                 onPointerEnter={event => showLocalPathTooltip(rootId, child.id, event.currentTarget, event.pointerType)}
                 onPointerLeave={schedulePathTooltipClose}
@@ -702,11 +704,8 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
                 <span className="local-file-disclosure" aria-hidden="true">
                   {child.directory ? (expanded.has(childKey) ? "▾" : "▸") : ""}
                 </span>
-                <span className={`local-file-kind-icon ${child.directory ? "is-directory" : "is-file"}`} aria-hidden="true">
-                  <ToolbarIcon name={child.directory ? "folder" : "document"} />
-                </span>
+                <FileEntryIcon item={child} className={`local-file-kind-icon ${child.directory || child.link === "directory" ? "is-directory" : "is-file"}`} />
                 <span className={`local-file-name ${child.directory ? "is-directory" : "is-file"}`}>{child.name}</span>
-                {child.link && <span className="local-file-row-meta">{localFileLinkLabel[child.link]}</span>}
                 {display?.showCounts && child.directory && pages[childKey] && (
                   <span className="local-file-row-meta">
                     {pages[childKey].nodes.length}{pages[childKey].next != null ? "+" : ""}

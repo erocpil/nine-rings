@@ -323,10 +323,25 @@ test("符号链接显示目标状态，内置编辑只打开当前授权根内�
   });
   await page.goto("/file-workbench.html");
   const left = page.getByRole("region", { name: "左侧目录", exact: true });
-  await expect(left.getByRole("option", { name: /^missing\.md/ })).toContainText("目标不存在");
-  await expect(left.getByRole("option", { name: /^sub-link/ })).toContainText("目录目标");
+  const missing = left.getByRole("option", { name: /^missing\.md/ });
+  await expect(missing).toHaveAccessibleDescription("符号链接 · 目标不存在");
+  await expect(missing.locator('[data-emblem="warning"]')).toBeVisible();
+  const directoryLink = left.getByRole("option", { name: /^sub-link/ });
+  await expect(directoryLink).toHaveAccessibleDescription("符号链接 · 目录目标");
+  await expect(directoryLink.locator('[data-file-link="directory"] [data-emblem="arrow"]')).toBeVisible();
   const alias = left.getByRole("option", { name: /^alias\.md/ });
-  await expect(alias).toContainText("符号链接");
+  await expect(alias.locator(".file-browser-name")).toHaveText("alias.md");
+  await expect(alias.locator('[data-file-link="file"]')).toHaveAttribute("title", "符号链接");
+  await expect(alias.locator('[data-emblem="arrow"]')).toHaveCSS("position", "absolute");
+  const actual = left.getByRole("option", { name: /^actual\.md/ });
+  await expect(actual.locator("[data-emblem]")).toHaveCount(0);
+  const aliasName = await alias.locator(".file-browser-name-text").boundingBox();
+  const actualName = await actual.locator(".file-browser-name-text").boundingBox();
+  expect(aliasName!.x).toBeCloseTo(actualName!.x, 1);
+  await page.getByRole("button", { name: "配色", exact: true }).click();
+  await page.getByRole("menuitem", { name: /柔和深色$/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "dark");
+  await expect(alias.locator('[data-emblem="arrow"]')).toBeVisible();
   await left.getByRole("option", { name: /^actual\.md/ }).click();
   await alias.click({ modifiers: ["ControlOrMeta"] });
   await expect(page.getByRole("button", { name: "批量重命名", exact: true })).toBeDisabled();
@@ -1666,7 +1681,7 @@ test("路径提示滚动时隐藏，停止后按光标下的新条目恢复并�
   const hint = page.locator(".quick-tooltip-path");
   await expect(hint).toHaveText("/authorized/Directory with spaces/Quite a long directory name/item_000_long_name.txt");
   await expect.poll(async () => {
-    const name = (await first.locator(".file-browser-name > span").boundingBox())!;
+    const name = (await first.locator(".file-browser-name-text").boundingBox())!;
     const popup = (await hint.boundingBox())!;
     // Long paths clamp at the viewport edge rather than following the pointer.
     return Math.abs(popup.x - Math.max(8, Math.min(name.x, (page.viewportSize()!.width - popup.width - 8))));

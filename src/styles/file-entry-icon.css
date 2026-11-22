@@ -1,0 +1,21 @@
+.file-entry-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.file-entry-icon > .file-entry-emblem {
+  position: absolute;
+  inset-inline-start: -2px;
+  inset-block-end: -1px;
+  display: inline-flex;
+  border-radius: 2px;
+  background: var(--surface);
+}
+.file-entry-icon > .file-entry-emblem .toolbar-icon {
+  width: 10px;
+  height: 10px;
+  stroke-width: 3;
+  color: var(--text);
+}

@@ -45,7 +45,7 @@
 .file-browser-list:focus .file-browser-row[data-current='true'] { outline: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: -1px; }
 .file-browser-row > span:not(:first-child) { color: var(--text-secondary); font-size: max(11px, calc(var(--browser-font-size, 13px) - 2px)); white-space: nowrap; }
 .file-browser-name { display: flex; gap: 7px; align-items: center; min-width: 0; }
-.file-browser-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-browser-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-browser-name svg { flex-shrink: 0; color: var(--text-secondary); width: 16px; height: 16px; }
 .file-browser-name.is-directory svg { color: var(--accent); }
 .file-browser-pane-badge { white-space: nowrap; color: var(--text-secondary); font-size: 11px; padding: 0 3px; }
@@ -302,5 +302,3 @@
 .file-browser-rename-grid select { padding: 7px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px; font: inherit; }
 .file-browser-rename-preset-actions { display: flex; gap: 8px; margin-block: 8px; }
 .file-browser-rename-preview p { overflow-wrap: anywhere; }
-
-.file-link-badge { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: 11px; }

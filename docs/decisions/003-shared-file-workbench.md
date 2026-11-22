@@ -284,6 +284,8 @@ macOS 包将 Markdown 和纯文本登记为候选编辑器。冷启动从进程�
 
 Workbench 与 Nine Rings 的双栏浏览，以及 Nine Rings 本地文件树，在目录列表中标出符号链接、失效目标、越界和目录目标。打开时使用共享原生解析器重新检查权限与目标。第一阶段仅跟随单个链接，目标必须是同一授权根内的普通文件，目标路径的各级目录必须是真实目录。解析返回当前授权根内的实际文件节点，编辑器以实际节点标识会话、检查版本和保存正文。
 
+列表和文件树共用文件类型图标。链接用左下角的箭头角标表示，目录链接保留文件夹图标，失效、越界或无法解析的链接显示警示角标。具体原因由悬停提示和无障碍描述提供，给文件名保留原有列宽。[Windows Shell 图标角标](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishelliconoverlayidentifier) · [freedesktop 图标规范](https://specifications.freedesktop.org/icon-naming/)
+
 搜索、目录大小及目录比较继续跳过符号链接。链接条目与含链接的多选不提交复制、移动、改名或回收站任务。Finder／命令行入口、快速预览和 Markdown 正文的相对路径跳转仍按原来的授权路径规则处理。
 
 **启动恢复。** 个别损坏草稿留在原位，其余文档继续加载。无效会话清单移存后重建。无法安全移存或读取时使用仅在当前进程保留的标签清单并给出提示。
