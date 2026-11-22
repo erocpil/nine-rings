@@ -331,6 +331,7 @@ fn main() {
             local_files::replacement::workbench_replace_file,
             local_files::local_files_trash,
             local_files::local_files_list,
+            local_files::local_files_resolve_link,
             local_files::local_files_read,
             local_files::local_files_write,
             local_files::local_files_read_asset,

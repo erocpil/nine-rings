@@ -8,7 +8,7 @@ import { FileBrowserFileDetails } from "./FileBrowserFileDetails";
 import { browserTabAllows, type BrowserWorkspaceTab } from "../lib/local-files/browser-tabs";
 import { useCallback, useEffect, useLayoutEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, type DragEvent, type Ref } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
-import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/file-model";
+import { fileSegments, localFileLinkLabel, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/file-model";
 import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { browserNavigationIndex, browserRowScroll, browserTypeahead, type BrowserTypeahead } from "../lib/local-files/browser-keyboard";
@@ -120,6 +120,8 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   const key = JSON.stringify([rootId, node, pane.sort, pane.showHidden, query, refresh, revision, revealNode]);
   const selected = useMemo(() => location?.selected ?? [], [location?.selected]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const linkIds = useMemo(() => new Set(nodes.filter(item => item.link).map(item => item.id)), [nodes]);
+  const hasLink = (selection: readonly string[]) => selection.some(id => linkIds.has(id));
   const selectionSummary = useMemo(() => browserSelectionSummary(nodes, selected, metadata), [nodes, selected, metadata]);
   const visibleRows = Math.max(1, Math.ceil(height / ROW));
   // The old scroll snapshot can outlive a much shorter refreshed listing.
@@ -128,7 +130,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   const end = Math.min(nodes.length, start + visibleRows + 10);
   useFileBrowserRefresh({
     enabled: visible && Boolean(root) && workspace.supportsDirectoryChanges(rootId) && !refreshPaused && !menu,
-    identity: key, rootId, node, options: { sort: pane.sort, showHidden: pane.showHidden, query }, provider,
+    identity: key, rootId, node, options: { sort: pane.sort, showHidden: pane.showHidden, query, includeLinks: true }, provider,
     canRead: () => Boolean(scrollRef.current?.getClientRects().length) && !restoring.current
       && !(document.activeElement instanceof HTMLElement && document.activeElement.matches("input, textarea, select, [contenteditable='true']"))
       && ![...document.querySelectorAll<HTMLElement>("[role='menu'], [role='dialog']")].some(element => element.getClientRects().length > 0),
@@ -215,13 +217,13 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     setAutoFailed(false); setPaging(false);
     metadataCache.current.clear(); setMetadata({});
     setLoading(true); setError(""); setNodes([]); setNext(null);
-    void provider.page(rootId, node, 0, { sort: pane.sort, showHidden: pane.showHidden, query }, controller.signal)
+    void provider.page(rootId, node, 0, { sort: pane.sort, showHidden: pane.showHidden, query, includeLinks: true }, controller.signal)
       .then(async page => {
         const top = location?.scrollTop ?? 0;
         const entries = [...page.nodes];
         let nextPage = page.next;
         while (nextPage !== null && (revealNode ? !entries.some(item => item.id === revealNode) : entries.length * ROW < top + height) && entries.length < 10000) {
-          const more = await provider.page(rootId, node, nextPage, { sort: pane.sort, showHidden: pane.showHidden, query }, controller.signal);
+          const more = await provider.page(rootId, node, nextPage, { sort: pane.sort, showHidden: pane.showHidden, query, includeLinks: true }, controller.signal);
           entries.push(...more.nodes); nextPage = more.next;
         }
         if (controller.signal.aborted) return;
@@ -267,7 +269,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     const controller = request.current;
     pageBusy.current = controller; setPaging(true); if (manual) { setAutoFailed(false); setError(""); }
     try {
-      const page = await provider.page(rootId, node, next, { sort: pane.sort, showHidden: pane.showHidden, query }, controller.signal);
+      const page = await provider.page(rootId, node, next, { sort: pane.sort, showHidden: pane.showHidden, query, includeLinks: true }, controller.signal);
       if (page.next !== null && (!Number.isSafeInteger(page.next) || page.next <= next)) throw new Error("目录分页游标未前进，请刷新后重试");
       if (!controller.signal.aborted) {
         for (const item of page.nodes) if (!item.directory && item.modifiedMs !== undefined) metadataCache.current.set(item.id, { size: item.size, modifiedMs: item.modifiedMs });
@@ -293,7 +295,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       setScroll(list.scrollTop); setScrollLeft(list.scrollLeft);
     }
   };
-  useImperativeHandle(previewRef, () => ({ step(direction) {
+  useImperativeHandle(previewRef, () => ({ hasLink, step(direction) {
     if (!visible || loading || loadedKey.current !== key) return false;
     const index = browserPreviewIndex(nodes, cursor.current ?? selected[selected.length - 1], direction);
     if (index === null) return false;
@@ -301,7 +303,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   } }));
   const openItem = (item: FileNode, system = false) => {
     if (item.directory) { navigate(item.id); return; }
-    if (system && compact && workspace.externalOpen) {
+    if (!item.link && system && compact && workspace.externalOpen) {
       workspace.assertActive();
       void workspace.externalOpen.open(rootId, item.id, false).catch(cause => showMessage(`系统打开失败：${String(cause)}`, "error"));
     } else onOpen(rootId, root?.name ?? rootId, item, compact ? nodes : undefined);
@@ -335,7 +337,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     } catch (cause) { showMessage(String(cause), "error"); }
   };
   const batchOpening = useRef(false);
-  const selectedEditorFiles = menu ? nodes.filter(item => menu.selection.includes(item.id) && !item.directory && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif|pdf)$/i.test(item.name)) : [];
+  const selectedEditorFiles = menu ? nodes.filter(item => menu.selection.includes(item.id) && !item.directory && !item.link && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif|pdf)$/i.test(item.name)) : [];
   const openSelectedEditors = async () => {
     if (!workspace.openEditors || batchOpening.current || !selectedEditorFiles.length) return;
     batchOpening.current = true;
@@ -345,7 +347,10 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     } catch (cause) { showMessage(String(cause), "error"); }
     finally { batchOpening.current = false; }
   };
-  const menuActions: FileBrowserMenuAction[] = menu ? [
+  const menuActions: FileBrowserMenuAction[] = menu?.item.link ? [
+    { label: "打开链接目标", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) },
+    { label: "复制名称", run: () => copy(menu.item.name, "名称") },
+  ] : menu ? [
     ...(menu.selection.length > 1 && workspace.openEditors && selectedEditorFiles.length ? [{ label: `使用内置编辑器打开所选文件（${selectedEditorFiles.length}）`, run: () => { void openSelectedEditors(); } }] : []),
     ...(!compact || menu.selection.length === 1 ? [{ label: "打开", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) }] : []),
     ...(!compact || (menu.selection.length === 1 && !menu.item.directory && workspace.externalOpen) ? [{ label: "打开方式", disabled: menu.selection.length !== 1 || menu.item.directory, children: [
@@ -358,7 +363,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     { label: "复制名称", separator: true, run: () => copy(menu.selection.map(id => id.split("/").pop()).join("\n"), "名称") },
     { label: "复制路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.path, "路径") },
     { label: "复制完整路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.selection.map(id => browserFullPath(menu.path!, id.split("/").pop()!)).join("\n"), "完整路径") },
-    ...(["copy", "move", "rename", "batch-rename", "trash"] as const).filter(kind => !compact || (workspace.canWrite(rootId) && (!(kind === "copy" || kind === "move") || workspace.canTransfer()) && (kind !== "trash" || workspace.canTrash()) && (kind !== "rename" || menu.selection.length === 1))).map(kind => ({ label: { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", trash: "移入系统回收站" }[kind], separator: kind === "copy" || kind === "trash", danger: kind === "trash", disabled: operationDisabled(kind, menu.selection.length), run: () => onOperation(kind, menu.selection) })),
+    ...(["copy", "move", "rename", "batch-rename", "trash"] as const).filter(kind => !compact || (workspace.canWrite(rootId) && (!(kind === "copy" || kind === "move") || workspace.canTransfer()) && (kind !== "trash" || workspace.canTrash()) && (kind !== "rename" || menu.selection.length === 1))).map(kind => ({ label: { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", trash: "移入系统回收站" }[kind], separator: kind === "copy" || kind === "trash", danger: kind === "trash", disabled: hasLink(menu.selection) || operationDisabled(kind, menu.selection.length), run: () => onOperation(kind, menu.selection) })),
   ] : [];
   const changeColumn = (column: BrowserColumn, value: number) => setColumns(current => ({ ...current, [column]: clampBrowserColumn(column, value), autoName: column === "name" ? false : current.autoName, autoModified: column === "modified" ? false : current.autoModified }));
   const sortColumn = (column: BrowserColumn) => { const sort: LocalFileSort = pane.sort === column ? `${column}-desc` : column; onChange(current => ({ ...updateBrowserLocation(current, { scrollTop: 0 }), sort })); };
@@ -444,13 +449,14 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       }
     }}>
       <div style={{ height: start * ROW }} aria-hidden="true" />
-      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} data-directory={item.directory} draggable={!loading && workspace.canTransfer()} onDragStart={event => {
+      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} data-directory={item.directory} draggable={!item.link && !loading && workspace.canTransfer()} onDragStart={event => {
         if (loading || loadedKey.current !== key) { event.preventDefault(); return; }
         const selection = selectedSet.has(item.id) ? selected : [item.id];
+        if (hasLink(selection)) { event.preventDefault(); return; }
         if (!selectedSet.has(item.id)) chooseItem(item);
         onDragStart(event, selection);
       }} onDragEnd={() => { setDrop(null); onDragEnd(); }} data-tooltip-path={hintPath?.rootId === rootId && hintPath.node === node ? browserFullPath(hintPath.path, item.name) : undefined} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key || (event.ctrlKey && isMacPlatform())) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={event => { if (!loading && loadedKey.current === key) openItem(item, !isPrimaryShortcutModifier(event)); }}>
-        <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span></span>
+        <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span>{item.link && <small className="file-link-badge">{localFileLinkLabel[item.link]}</small>}</span>
         {compact && display.type && <span className="file-browser-type">{localFileTypeLabel(item)}</span>}
         {display.size && <span aria-label={item.directory ? "目录内部大小尚未统计" : undefined}>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>}
         {display.modified && <span data-browser-column="modified">{browserDateText(metadata[item.id]?.modifiedMs ?? item.modifiedMs, display.dateFormat)}</span>}

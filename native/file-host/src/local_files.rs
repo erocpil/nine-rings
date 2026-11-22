@@ -244,6 +244,28 @@ pub struct Node {
     directory: bool,
     size: u64,
     modified_ms: u128,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    link: Option<FileLink>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum FileLink {
+    File,
+    Missing,
+    OutsideRoot,
+    Directory,
+    Unsupported,
+}
+impl FileLink {
+    fn message(self) -> &'static str {
+        match self {
+            Self::File => "文件链接可以打开",
+            Self::Missing => "符号链接的目标不存在",
+            Self::OutsideRoot => "符号链接的目标超出当前授权目录",
+            Self::Directory => "当前不打开目录符号链接",
+            Self::Unsupported => "无法打开此符号链接",
+        }
+    }
 }
 #[derive(Serialize)]
 pub struct Page {
@@ -334,6 +356,120 @@ fn checked_path(root: &Path, node: &str) -> Result<PathBuf, String> {
     }
     Ok(resolved)
 }
+// Resolve one link entry. Every resolved component must stay in this grant
+// and be an actual directory or file. UI opens the returned ordinary node.
+fn resolve_file_link(root: &Path, node: &str) -> Result<(String, fs::Metadata), FileLink> {
+    let path = Path::new(node);
+    let parent = path
+        .parent()
+        .and_then(Path::to_str)
+        .ok_or(FileLink::Unsupported)?;
+    let name = path
+        .file_name()
+        .and_then(|part| part.to_str())
+        .ok_or(FileLink::Unsupported)?;
+    valid_name(name).map_err(|_| FileLink::Unsupported)?;
+    let parent = checked_path(root, parent).map_err(|_| FileLink::Unsupported)?;
+    let entry = parent.join(name);
+    let target = fs::read_link(&entry).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            FileLink::Missing
+        } else {
+            FileLink::Unsupported
+        }
+    })?;
+
+    let (mut resolved, relative) = if target.is_absolute() {
+        (
+            root.to_owned(),
+            target
+                .strip_prefix(root)
+                .map_err(|_| FileLink::OutsideRoot)?,
+        )
+    } else {
+        (parent, target.as_path())
+    };
+    let mut parts = relative.components().peekable();
+    while let Some(part) = parts.next() {
+        match part {
+            Component::Normal(name) => {
+                valid_name(name.to_str().ok_or(FileLink::Unsupported)?)
+                    .map_err(|_| FileLink::Unsupported)?;
+                resolved.push(name);
+                let meta = fs::symlink_metadata(&resolved).map_err(|error| {
+                    if error.kind() == std::io::ErrorKind::NotFound {
+                        FileLink::Missing
+                    } else {
+                        FileLink::Unsupported
+                    }
+                })?;
+                if is_link(&meta) || (parts.peek().is_some() && !meta.is_dir()) {
+                    return Err(FileLink::Unsupported);
+                }
+            }
+            Component::CurDir => {}
+            Component::ParentDir if resolved != root => {
+                resolved.pop();
+            }
+            Component::ParentDir => return Err(FileLink::OutsideRoot),
+            _ => return Err(FileLink::Unsupported),
+        }
+    }
+
+    let relative = |path: &Path| -> Result<String, FileLink> {
+        path.strip_prefix(root)
+            .map_err(|_| FileLink::OutsideRoot)?
+            .iter()
+            .map(|part| part.to_str().ok_or(FileLink::Unsupported))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|names| names.join("/"))
+    };
+    let actual = checked_path(root, &relative(&resolved)?).map_err(|_| FileLink::Unsupported)?;
+    let target_node = relative(&actual)?;
+    let meta = fs::symlink_metadata(actual).map_err(|_| FileLink::Unsupported)?;
+    if meta.is_dir() {
+        return Err(FileLink::Directory);
+    }
+    if !meta.is_file() || is_link(&meta) {
+        return Err(FileLink::Unsupported);
+    }
+    Ok((target_node, meta))
+}
+
+fn local_node(id: String, name: String, meta: &fs::Metadata, link: Option<FileLink>) -> Node {
+    Node {
+        id,
+        name,
+        directory: link.is_none() && meta.is_dir(),
+        size: meta.len(),
+        modified_ms: modified_millis(meta),
+        link,
+    }
+}
+
+#[tauri::command]
+pub async fn local_files_resolve_link(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+) -> Result<Node, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let final_root = root.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let (id, metadata) = resolve_file_link(&root, &node).map_err(|error| error.message())?;
+        let name = id.rsplit('/').next().ok_or("链接目标无效")?.to_owned();
+        Ok::<_, &str>(local_node(id, name, &metadata, None))
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    if library.root(&root_id)? != final_root {
+        return Err("目录授权已变化".into());
+    }
+    Ok(result)
+}
+
 impl LocalFiles {
     pub fn load(dir: &Path) -> Self {
         let grants: Vec<Grant> = fs::read(dir.join("local-file-roots.json"))
@@ -1226,6 +1362,7 @@ pub struct ListOptions {
     sort: FileSort,
     show_hidden: bool,
     query: String,
+    include_links: bool,
 }
 impl Default for ListOptions {
     fn default() -> Self {
@@ -1233,6 +1370,7 @@ impl Default for ListOptions {
             sort: FileSort::Name,
             show_hidden: true,
             query: String::new(),
+            include_links: false,
         }
     }
 }
@@ -1258,7 +1396,12 @@ fn list_with_options(
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error.to_string()),
         };
-        if is_link(&meta) || (!meta.is_dir() && !meta.is_file()) {
+        let link = is_link(&meta);
+        if if link {
+            !options.include_links
+        } else {
+            !meta.is_dir() && !meta.is_file()
+        } {
             continue;
         }
         let Ok(name) = item.file_name().into_string() else {
@@ -1279,22 +1422,17 @@ fn list_with_options(
         if !meta.is_dir() && !query.is_empty() && !name.to_lowercase().contains(&query) {
             continue;
         }
-        nodes.push(Node {
-            id: if node.is_empty() {
-                name.clone()
-            } else {
-                format!("{node}/{name}")
-            },
+        let id = if node.is_empty() {
+            name.clone()
+        } else {
+            format!("{node}/{name}")
+        };
+        nodes.push(local_node(
+            id,
             name,
-            directory: meta.is_dir(),
-            size: meta.len(),
-            modified_ms: meta
-                .modified()
-                .ok()
-                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|time| time.as_millis())
-                .unwrap_or(0),
-        });
+            &meta,
+            link.then_some(FileLink::Unsupported),
+        ));
     }
     nodes.sort_by(|a, b| {
         let extension = |item: &Node| {
@@ -1343,7 +1481,20 @@ fn list_with_options(
         None
     };
     Ok(Page {
-        nodes: nodes.into_iter().skip(offset).take(200).collect(),
+        nodes: nodes
+            .into_iter()
+            .skip(offset)
+            .take(200)
+            .map(|mut entry| {
+                if entry.link.is_some() {
+                    entry.link = Some(
+                        resolve_file_link(root, &entry.id)
+                            .map_or_else(|error| error, |_| FileLink::File),
+                    );
+                }
+                entry
+            })
+            .collect(),
         next,
     })
 }
@@ -2036,6 +2187,61 @@ pub fn write_selected_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn visible_links_only_resolve_to_ordinary_files_in_the_grant() {
+        use std::os::unix::fs::symlink;
+        let fixture = TransferFixture::new();
+        let root = fixture.0.join("dest");
+        fs::create_dir(root.join("sub")).unwrap();
+        fs::write(root.join("target.md"), "document").unwrap();
+        fs::write(fixture.0.join("outside.md"), "outside").unwrap();
+        symlink("sub/../target.md", root.join("alias.md")).unwrap();
+        symlink(root.join("target.md"), root.join("absolute.md")).unwrap();
+        symlink("../outside.md", root.join("outside-link.md")).unwrap();
+        symlink("missing.md", root.join("missing-link.md")).unwrap();
+        symlink("sub", root.join("directory-link")).unwrap();
+        symlink("alias.md", root.join("chain.md")).unwrap();
+        symlink("loop.md", root.join("loop.md")).unwrap();
+        symlink("directory-link/../target.md", root.join("indirect.md")).unwrap();
+        assert!(list(&root, "", 0)
+            .unwrap()
+            .nodes
+            .iter()
+            .all(|entry| entry.link.is_none()));
+        let options = ListOptions {
+            include_links: true,
+            ..ListOptions::default()
+        };
+        let page = list_with_options(&root, "", 0, &options).unwrap();
+        let status = |name| {
+            page.nodes
+                .iter()
+                .find(|entry| entry.name == name)
+                .unwrap()
+                .link
+        };
+        assert_eq!(status("alias.md"), Some(FileLink::File));
+        assert_eq!(status("absolute.md"), Some(FileLink::File));
+        assert_eq!(status("outside-link.md"), Some(FileLink::OutsideRoot));
+        assert_eq!(status("missing-link.md"), Some(FileLink::Missing));
+        assert_eq!(status("directory-link"), Some(FileLink::Directory));
+        assert_eq!(status("chain.md"), Some(FileLink::Unsupported));
+        assert_eq!(status("loop.md"), Some(FileLink::Unsupported));
+        assert_eq!(status("indirect.md"), Some(FileLink::Unsupported));
+        let (target, _) = resolve_file_link(&root, "alias.md").unwrap();
+        assert_eq!(target, "target.md");
+        assert_eq!(read(&root, &target).unwrap().source, "document");
+        assert!(read(&root, "alias.md").is_err());
+        assert!(move_entry(&root, "alias.md", "", "other.md").is_err());
+        fs::remove_file(root.join("alias.md")).unwrap();
+        symlink("../outside.md", root.join("alias.md")).unwrap();
+        assert_eq!(
+            resolve_file_link(&root, "alias.md").unwrap_err(),
+            FileLink::OutsideRoot
+        );
+    }
 
     #[test]
     fn save_as_keeps_a_file_created_after_checking_the_destination() {

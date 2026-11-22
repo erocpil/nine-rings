@@ -302,3 +302,5 @@
 .file-browser-rename-grid select { padding: 7px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px; font: inherit; }
 .file-browser-rename-preset-actions { display: flex; gap: 8px; margin-block: 8px; }
 .file-browser-rename-preview p { overflow-wrap: anywhere; }
+
+.file-link-badge { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: 11px; }

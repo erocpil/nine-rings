@@ -4,7 +4,16 @@ export interface FileRoot {
   name: string;
   transient?: boolean;
 }
+export type LocalFileLink = "file" | "missing" | "outside-root" | "directory" | "unsupported";
+export const localFileLinkLabel: Record<LocalFileLink, string> = {
+  file: "符号链接",
+  missing: "符号链接 · 目标不存在",
+  "outside-root": "符号链接 · 目标超出授权目录",
+  directory: "符号链接 · 目录目标",
+  unsupported: "符号链接 · 无法打开",
+};
 export interface FileNode {
+  link?: LocalFileLink;
   id: string;
   name: string;
   directory: boolean;

@@ -835,6 +835,7 @@ pub fn run() {
             commands::local_files::local_files_transfer,
             commands::local_files::local_files_trash,
             commands::local_files::local_files_list,
+            commands::local_files::local_files_resolve_link,
             commands::local_files::local_files_read,
             commands::local_files::local_files_write,
             commands::local_files::local_files_read_asset,

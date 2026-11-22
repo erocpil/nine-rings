@@ -371,6 +371,14 @@ export const localFileService = {
     check();
     return { root, nodeId: nextNode };
   },
+  async resolveLink(rootId: string, node: string): Promise<FileNode> {
+    const check = guard();
+    fileSegments(node);
+    if (!isTauriRuntime()) throw new Error("当前文件来源不支持符号链接");
+    const target = await native<FileNode>("local_files_resolve_link", { rootId, node });
+    check();
+    return target;
+  },
   async list(rootId: string, node = "", offset = 0, options?: LocalFileListOptions): Promise<FilePage> {
     const check = guard();
     fileSegments(node);

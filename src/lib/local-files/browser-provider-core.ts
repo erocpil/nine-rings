@@ -68,6 +68,13 @@ export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): Brow
     },
     async open(rootId, rootName, node, signal, location, siblings) {
       check(signal);
+      if (node.link) {
+        if (!host.files.resolveLink) throw new Error("当前文件来源不支持符号链接");
+        const target = await host.files.resolveLink(rootId, node.id);
+        check(signal);
+        await host.open({ rootId, rootName, node: target }, signal);
+        return;
+      }
       await host.open({ rootId, rootName, node, ...(location ? { location } : {}), ...(siblings ? { siblings } : {}) }, signal);
     },
     async openMarkdownLink(rootId, from, href, signal) {

@@ -52,7 +52,7 @@ export function useFileBrowserRenamePreview(operation: BrowserOperation, rules: 
       try {
         for (let pages = 0; offset !== null && siblings.length < 2000 && pages < 10; pages++) {
           controller.signal.throwIfAborted();
-          const page = await provider.page(rootId, parent, offset, { sort: "name", showHidden: true, query: "" }, controller.signal);
+          const page = await provider.page(rootId, parent, offset, { sort: "name", showHidden: true, query: "", includeLinks: true }, controller.signal);
           siblings.push(...page.nodes.slice(0, 2000 - siblings.length));
           offset = page.next;
         }

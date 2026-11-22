@@ -10,6 +10,7 @@ export interface BrowserFileOpen { rootId: string; rootName: string; node: FileN
 export interface BrowserDirectoryHost {
   assertActive(): void;
   files: {
+    resolveLink?(rootId: string, node: string): Promise<FileNode>;
     list(rootId: string, node: string, offset: number, options: LocalFileListOptions): Promise<FilePage>;
     stat(rootId: string, node: string): Promise<LocalFileFingerprint>;
     readSnapshot(rootId: string, node: string): Promise<LocalFileSnapshot>;

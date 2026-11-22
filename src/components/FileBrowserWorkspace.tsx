@@ -108,7 +108,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
     setListingRevision(value => value + 1);
   }), [workspace]);
   const startOperation = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, selection?: readonly string[]) => {
-    if (operationDisabled(kind, side, selection?.length)) return;
+    if (operationDisabled(kind, side, selection?.length, selection)) return;
     const source = browserLocation(panes[side]);
     const target = browserLocation(panes[side === 0 ? 1 : 0]);
     if (!source || ((!target || !workspace.canWrite(target.rootId)) && (kind === "copy" || kind === "move"))) return;
@@ -127,9 +127,10 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
   useEffect(() => () => workspace.viewMenu?.update({ enabled: false, showHidden: false }), [workspace]);
   const currentRow = currentRows[state.active];
   const previewNode = currentRow?.tabId === state.groups[state.active].tabs[state.groups[state.active].active].tabId && currentRow.rootId === currentLocation?.rootId && currentRow.node !== null ? currentRow.node : currentLocation?.selected[currentLocation.selected.length - 1];
-  const operationDisabled = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, count = browserLocation(panes[side])?.selected.length ?? 0) => {
+  const operationDisabled = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, count = browserLocation(panes[side])?.selected.length ?? 0, selection?: readonly string[]) => {
     const source = browserLocation(panes[side]);
     const target = browserLocation(panes[side === 0 ? 1 : 0]);
+    if (kind !== "file" && kind !== "directory" && previewNavigation.current[side]?.hasLink(selection ?? source?.selected ?? [])) return true;
     return opening || !source || !workspace.canWrite(source.rootId) || ((kind === "copy" || kind === "move") && (!workspace.canTransfer() || !target || !workspace.canWrite(target.rootId))) || (kind === "trash" && !workspace.canTrash()) || (["copy", "move", "trash", "batch-rename"].includes(kind) && !count) || (kind === "rename" && count !== 1);
   };
   const restoreBrowserFocus = (selector: string) => {

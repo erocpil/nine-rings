@@ -6,9 +6,10 @@ export interface LocalFileListOptions {
   sort: LocalFileSort;
   showHidden: boolean;
   query: string;
+  includeLinks?: boolean;
 }
 export interface ListedFilePage extends FilePage { listingKey: string }
-export const localFileListKey = (options: LocalFileListOptions) => JSON.stringify([options.sort, options.showHidden, options.query.trim().toLowerCase()]);
+export const localFileListKey = (options: LocalFileListOptions) => JSON.stringify([options.sort, options.showHidden, options.query.trim().toLowerCase(), Boolean(options.includeLinks)]);
 export const appendLocalFileNodes = (previous: readonly FileNode[], next: readonly FileNode[]) => [...new Map([...previous, ...next].map(node => [node.id, node])).values()];
 export const DEFAULT_LOCAL_FILE_LIST: LocalFileListOptions = { sort: "name", showHidden: true, query: "" };
 const KEY = "nr:local-files-tree-preferences";
@@ -36,7 +37,7 @@ export function localFileTreeNodes(nodes: Iterable<FileNode>, options: LocalFile
 }
 export function sameLocalFilePage(left: FilePage | undefined, right: FilePage) {
   return left?.next === right.next && left.nodes.length === right.nodes.length
-    && left.nodes.every((node, index) => { const other = right.nodes[index]!; return node.id === other.id && node.name === other.name && node.directory === other.directory && node.size === other.size && node.modifiedMs === other.modifiedMs; });
+    && left.nodes.every((node, index) => { const other = right.nodes[index]!; return node.id === other.id && node.name === other.name && node.directory === other.directory && node.size === other.size && node.modifiedMs === other.modifiedMs && node.link === other.link; });
 }
 /** Descendants of collapsed or hidden folders do not need background enumeration. */
 export function isLocalFileDirectoryVisible(key: string, expanded: ReadonlySet<string>, pages: Readonly<Record<string, FilePage>>, rootIds: ReadonlySet<string>, showHidden: boolean) {

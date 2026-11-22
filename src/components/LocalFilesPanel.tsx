@@ -1,3 +1,4 @@
+import { localFileLinkLabel } from "../lib/local-files/file-model";
 import { watchWindowHoverDismiss } from "../lib/window-hover-lifecycle";
 import { LOCAL_FILE_RENAMED_EVENT, type LocalFileRename } from "../lib/local-files/rename";
 import { FILE_BROWSER_MUTATION_EVENT, type BrowserMutation } from "../lib/local-files/browser-operations";
@@ -147,6 +148,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
     return openLocalFiles.filter(identity => identity === exact || identity.startsWith(prefix));
   };
   const [contextMenu, setContextMenu] = useState<(NotesMenuTarget & { rootId: string; nodeId: string; directory: boolean; name: string; fullPath: string | null; pathLoading: boolean }) | null>(null);
+  const treeOpenSequence = useRef(0);
   const { message: pathNotice, showMessage: showPathNotice, clearMessage: clearPathNotice } = useTransientMessage();
   const [pathTooltip, setPathTooltip] = useState<LocalPathTooltip | null>(null);
   const pathHoverTargetRef = useRef<string | null>(null);
@@ -246,7 +248,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
     host.scrollTop = saved.scrollTop;
   }, [pages]);
   const filterInput = useRef<HTMLInputElement>(null);
-  const listOptions = useMemo(() => ({ ...preferences, query: appliedQuery }), [preferences, appliedQuery]);
+  const listOptions = useMemo(() => ({ ...preferences, query: appliedQuery, includeLinks: true }), [preferences, appliedQuery]);
   const listingKey = localFileListKey(listOptions);
   const { readPage, reload: reloadTree } = useLocalFileTree({ active, ready: rootsReady, roots, expanded, pages, options: listOptions, busy: busy.size > 0, setPages, onError: setError });
   const browserMutationReload = useRef(reloadTree);
@@ -682,14 +684,18 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
                   !child.directory ? selected === childKey : undefined
                 }
                 onContextMenu={event => {
+                  if (child.link) { event.preventDefault(); return; }
                   showLocalContextMenu(event, { id: childKey, title: child.name, rootId, nodeId: child.id, directory: child.directory, name: child.name });
                 }}
                 onClick={() => {
+                  const sequence = ++treeOpenSequence.current;
+                  const version = revision.current.value;
                   if (child.directory) toggle(rootId, child.id);
                   else
                     void run(childKey, async () => {
                       // File bytes are read by the host renderer only after its save/navigation gate.
-                      openFile(rootId, child.id, child.name);
+                      const target = child.link ? await localFileService.resolveLink(rootId, child.id) : child;
+                      if (mounted.current && version === revision.current.value && sequence === treeOpenSequence.current) openFile(rootId, target.id, target.name);
                     });
                 }}
               >
@@ -700,6 +706,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
                   <ToolbarIcon name={child.directory ? "folder" : "document"} />
                 </span>
                 <span className={`local-file-name ${child.directory ? "is-directory" : "is-file"}`}>{child.name}</span>
+                {child.link && <span className="local-file-row-meta">{localFileLinkLabel[child.link]}</span>}
                 {display?.showCounts && child.directory && pages[childKey] && (
                   <span className="local-file-row-meta">
                     {pages[childKey].nodes.length}{pages[childKey].next != null ? "+" : ""}

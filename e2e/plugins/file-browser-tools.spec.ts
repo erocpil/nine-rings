@@ -89,6 +89,37 @@ test("目录比较区分当前层元信息与正文，正文搜索打开匹配�
   await page.getByRole("button", { name: "返回原视图", exact: true }).click();
   await expect(browser).toBeVisible();
 });
+test("Nine Rings 文件树和双栏使用共享符号链接解析打开实际文件", async ({ page }) => {
+  const { browser, panel, left, roots } = await fixture(page);
+  await page.evaluate(async rootId => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const list = localFileService.list.bind(localFileService);
+    localFileService.list = async (root, node, offset, options) => {
+      const page = await list(root, node, offset, options);
+      if (root === rootId && !node && !offset && options?.includeLinks) page.nodes.push({ id: "alias.c", name: "alias.c", directory: false, size: 0, link: "file" });
+      return page;
+    };
+    localFileService.resolveLink = async () => ({ id: "a.c", name: "a.c", directory: false, size: 1 });
+  }, roots.left.id);
+  await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+  const root = panel.locator(`[data-local-file-id="${roots.left.id}:"]`);
+  await expect(root).toBeVisible();
+  if (await root.getAttribute("aria-expanded") === "true") await panel.getByRole("button", { name: "刷新已展开目录" }).click();
+  else await root.click();
+  const treeAlias = panel.locator(`[data-local-file-id="${roots.left.id}:alias.c"]`);
+  await expect(treeAlias).toContainText("符号链接");
+  await treeAlias.click();
+  const source = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await expect(source).toContainText("needle");
+  await panel.getByRole("button", { name: "双栏浏览", exact: true }).click();
+  await left.getByRole("button", { name: "刷新目录", exact: true }).click();
+  const alias = left.getByRole("option", { name: /^alias\.c/ });
+  await expect(alias).toContainText("符号链接");
+  await alias.dblclick();
+  await expect(source).toContainText("needle");
+  await expect(page.locator(".local-file-titlebar")).toContainText("a.c");
+});
+
 test("批量重命名先预览，再按选中顺序执行且保留扩展名", async ({ page }) => {
   const { browser, left } = await fixture(page);
   // Writable service facade for this UI test; actual exclusive native moves

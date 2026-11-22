@@ -296,6 +296,50 @@ test("柔和配色和清雅/物哀在浏览、编辑与重启后保持一致", a
   expect(await page.evaluate(() => localStorage.getItem("nr:theme"))).toBe("original-theme");
 });
 
+test("符号链接显示目标状态，内置编辑只打开当前授权根内的实际文件", async ({ page }) => {
+  await page.addInitScript(() => {
+    const opened: string[] = [];
+    const target = { id: "actual.md", name: "actual.md", directory: false, size: 10 };
+    Object.assign(window, { __openedLinkNodes: opened, __TAURI_INTERNALS__: {
+      transformCallback: () => 1,
+      async invoke(command: string, args: { node: string; options?: { includeLinks?: boolean } }) {
+        if (command === "plugin:event|listen") return 1;
+        if (command === "workbench_window_role") return "browser";
+        if (command === "local_files_roots") return [{ id: "links-root", name: "Links" }];
+        if (command === "local_files_display_path") return "/fixture";
+        if (command === "local_files_list") return { next: null, nodes: [target, ...(args.options?.includeLinks ? [
+          { ...target, id: "alias.md", name: "alias.md", link: "file" },
+          { ...target, id: "missing.md", name: "missing.md", link: "missing" },
+          { ...target, id: "outside.md", name: "outside.md", link: "outside-root" },
+          { ...target, id: "sub-link", name: "sub-link", link: "directory" },
+        ] : [])] };
+        if (command === "local_files_resolve_link") {
+          if (args.node === "alias.md") return target;
+          throw new Error("符号链接的目标超出当前授权目录");
+        }
+        if (command === "workbench_open_editor") opened.push(args.node);
+      },
+    } });
+  });
+  await page.goto("/file-workbench.html");
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await expect(left.getByRole("option", { name: /^missing\.md/ })).toContainText("目标不存在");
+  await expect(left.getByRole("option", { name: /^sub-link/ })).toContainText("目录目标");
+  const alias = left.getByRole("option", { name: /^alias\.md/ });
+  await expect(alias).toContainText("符号链接");
+  await left.getByRole("option", { name: /^actual\.md/ }).click();
+  await alias.click({ modifiers: ["ControlOrMeta"] });
+  await expect(page.getByRole("button", { name: "批量重命名", exact: true })).toBeDisabled();
+  await alias.dblclick();
+  await expect.poll(() => page.evaluate(() => (window as any).__openedLinkNodes)).toEqual(["actual.md"]);
+  await left.getByRole("option", { name: /^actual\.md/ }).click();
+  await left.getByRole("listbox").press("Enter");
+  await expect.poll(() => page.evaluate(() => (window as any).__openedLinkNodes)).toEqual(["actual.md", "actual.md"]);
+  await left.getByRole("option", { name: /^outside\.md/ }).dblclick();
+  await expect(page.getByRole("alert")).toContainText("目标超出当前授权目录");
+  expect(await page.evaluate(() => (window as any).__openedLinkNodes.length)).toBe(2);
+});
+
 test("批量重命名预览规则和隐藏项冲突，重开预设后按原队列执行", async ({ page }) => {
   await page.addInitScript(() => {
     const names = new Set(["Alpha.md", "Beta.md", ".reserved.md"]);

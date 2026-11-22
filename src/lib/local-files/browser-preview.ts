@@ -36,7 +36,10 @@ export function browserSelectionSummary(nodes: readonly FileNode[], selected: re
   }
   return { bytes, files, directories, unknown };
 }
-export interface BrowserPreviewNavigation { step: (direction: -1 | 1) => boolean }
+export interface BrowserPreviewNavigation {
+  step: (direction: -1 | 1) => boolean;
+  hasLink(selection: readonly string[]): boolean;
+}
 
 export function isBrowserImagePath(node: string) {
   return /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(node);
