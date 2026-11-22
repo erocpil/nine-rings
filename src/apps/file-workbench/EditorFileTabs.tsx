@@ -3,6 +3,14 @@ import { NotesContextMenu, type NotesMenuTarget } from "../../components/NotesCo
 import { ToolbarIcon } from "../../components/ToolbarIcon";
 import type { WorkbenchEditorSession } from "./editor-window";
 
+const Segmenter = (Intl as unknown as { Segmenter?: new (locale: undefined, options: { granularity: "grapheme" }) => { segment: (text: string) => Iterable<{ segment: string }> } }).Segmenter;
+const graphemes = Segmenter ? new Segmenter(undefined, { granularity: "grapheme" }) : undefined;
+
+function shortName(name: string) {
+  const characters = graphemes ? Array.from(graphemes.segment(name), part => part.segment) : Array.from(name);
+  return characters.length <= 8 ? name : `${characters.slice(0, 8).join("")}…`;
+}
+
 export function EditorFileTabs({ files, current, dirty, select, close, discard }: {
   files: WorkbenchEditorSession[]; current: string | null; dirty: Record<string, boolean>;
   select: (id: string) => void; close: (id: string) => void; discard: (id: string) => void;
@@ -22,10 +30,11 @@ export function EditorFileTabs({ files, current, dirty, select, close, discard }
     }}>
       {files.map(file => <div className="workbench-editor-tab" key={file.id} data-active={file.id === current || undefined}>
         <button role="tab" type="button" aria-selected={file.id === current} tabIndex={file.id === current ? 0 : -1}
-          title={file.file.bufferPath ?? (file.file.untitled ? "尚未选择保存位置" : file.id)} onClick={() => select(file.id)}
+          aria-label={`${dirty[file.id] ? "未保存 " : ""}${file.file.node.name}`}
+          title={file.file.bufferPath ?? (file.file.untitled ? `${file.file.node.name}\n尚未选择保存位置` : file.id)} onClick={() => select(file.id)}
           onAuxClick={event => { if (event.button === 1) { event.preventDefault(); close(file.id); } }}
           onContextMenu={event => { event.preventDefault(); setMenu({ id: file.id, x: event.clientX, y: event.clientY, title: file.file.node.name, trigger: event.currentTarget }); }}>
-          {dirty[file.id] && <span aria-label="未保存">●</span>}<span>{file.file.node.name}</span>
+          {dirty[file.id] && <span aria-hidden="true">●</span>}<span className="workbench-editor-tab-name">{shortName(file.file.node.name)}</span>
         </button>
         <button type="button" className="btn-icon" aria-label={`关闭 ${file.file.node.name}`} onClick={() => close(file.id)}><ToolbarIcon name="close" /></button>
       </div>)}

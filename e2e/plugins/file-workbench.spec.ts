@@ -4210,7 +4210,7 @@ test("编辑器未命名文件在取消保存和重启后保留，首次保存�
   await expect(editor).toContainText("draft survives restart");
   await page.evaluate(() => { (window as any).__editorFixture.cancelSave = false; });
   await editor.click(); await page.keyboard.press("ControlOrMeta+s");
-  await expect(tabs.getByRole("tab").last()).toContainText("saved.txt");
+  await expect(tabs.getByRole("tab").last()).toHaveAccessibleName("saved.txt");
   await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.saves)).toEqual(["/chosen/saved.txt"]);
   await page.getByRole("button", { name: "新建文件", exact: true }).click();
   await expect(tabs.getByRole("tab")).toHaveCount(4);
@@ -4279,9 +4279,42 @@ test("退出保留磁盘标签及顺序，主动关闭才移除，并恢复状�
   await expect(menu.getByRole("menuitemcheckbox", { name: "相对行号", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true })).toHaveAttribute("aria-checked", "false");
   await page.keyboard.press("Escape");
+  await tabs.getByRole("tab", { name: "beta.c", exact: true }).hover();
   await tabs.getByRole("button", { name: "关闭 beta.c", exact: true }).click();
   await expect(tabs.getByRole("tab")).toHaveCount(1);
   await page.reload(); await expect(tabs.getByRole("tab")).toHaveText(["alpha.c"]);
+});
+
+test("编辑标签精简长名称，悬停和键盘聚焦显示关闭且宽度不变", async ({ page, browserName }) => {
+  const long = "甲乙丙丁戊己庚辛壬癸.c";
+  await page.setViewportSize({ width: 720, height: 620 });
+  await setupIndependentEditor(page, { "alpha.c": "int alpha;", [long]: "int beta;" });
+  const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
+  const tab = tabs.getByRole("tab", { name: long, exact: true });
+  const close = tabs.getByRole("button", { name: `关闭 ${long}`, exact: true });
+  await expect(tab).toHaveText("甲乙丙丁戊己庚辛…");
+  await expect(tab).toHaveAttribute("title", `/root/${long}`);
+  await expect(close).toHaveCSS("opacity", "0");
+  const before = (await tab.boundingBox())!.width;
+  await tab.hover();
+  await expect(close).toHaveCSS("opacity", "1");
+  expect((await tab.boundingBox())!.width).toBe(before);
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await page.mouse.move(5, 250);
+  await expect(close).toHaveCSS("opacity", "0");
+  await page.evaluate(() => {
+    localStorage.setItem("file-workbench:palette", "dark");
+    window.dispatchEvent(new Event("file-workbench:palette"));
+  });
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "dark");
+  await tab.focus();
+  // Safari on macOS uses Option-Tab to reach all controls with its default keyboard preferences.
+  await page.keyboard.press(browserName === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
+  await expect(close).toBeFocused();
+  await expect(close).toHaveCSS("opacity", "1");
+  await close.press("Enter");
+  await expect(tab).toHaveCount(0);
 });
 
 for (const rendered of [false, true]) for (const readonly of [false, true]) test(`独立Editor选区悬浮工具与右键高亮保留 rendered=${rendered} readonly=${readonly}`, async ({ page }) => {
