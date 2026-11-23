@@ -14,10 +14,10 @@ Workbench 已有模板式批量重命名和逐项预览、可配置快捷键、�
 | 4 | 双文件差异查看（已实现） | 中高 | 中 | 从目录比较打开左右文本的只读逐行差异，并可跳到对应行。同一查看方式也可用于核对编辑器的外部修改冲突。[Krusader](https://krusader.org/) · [Beyond Compare](https://www.scootersoftware.com/v5help/) |
 | 5 | 跨目录文件暂存架（已实现） | 中高 | 中 | 从多个目录收集文件引用，选定目标后统一复制或移动。入队前复核路径和授权，并标明失效条目及原因。[QSpace](https://qspace.awehunt.com/en-us/index.html) · [Path Finder](https://cocoatech.io/) |
 | 6 | 命名工作区与布局恢复（已实现） | 中 | 中 | 将现有双栏、多目录区及标签保存为可切换的命名工作区，复用布局持久化和授权恢复逻辑。[QSpace](https://qspace.awehunt.com/en-us/index.html) · [Directory Opus](https://docs.dopus.com/doku.php?id=basic_concepts:the_lister) |
-| 7 | 压缩包作为只读目录 | 中 | 中高 | 先支持 ZIP 内浏览、预览及选中条目解压。包内编辑涉及整包写回与外部修改核验，留待后续。[Double Commander](https://doublecmd.github.io/doc/en/about.html) · [Commander One](https://commander-one.com/) |
+| 7 | 压缩包作为只读目录（已实现） | 中 | 中高 | 先支持 ZIP 内浏览、预览及选中条目解压。包内编辑涉及整包写回与外部修改核验，留待后续。[Double Commander](https://doublecmd.github.io/doc/en/about.html) · [Commander One](https://commander-one.com/) |
 | 8 | 远程文件位置 | 取决于用户需求 | 高 | 有明确需求时先评估 SFTP 浏览、下载和上传。远程就地编辑、同步及云存储需要另行设计凭据、断线处理与修订核验。[ForkLift](https://www.binarynights.com/) |
 
-工具栏或 Command／Ctrl+Shift+P 可打开命令面板。文件命令复用当前目录栏和键盘命令的门禁，自定义工具进入执行确认，固定及最近目录来自已有标签历史。比较结果可勾选并按指定方向预览复制计划。当前只计划普通文件且目标父目录须存在；同名差异交给队列按既有冲突流程处理。暂存架在当前浏览会话保留去重的普通文件引用，上限 500。可指定任一栏当前目录，核验后提交复制或移动，失效项留在暂存架供移除。命名工作区保存在本机，可载入、更新和删除；恢复双栏比例、活动栏、多目录行、目录标签及其状态，根授权沿用当前宿主。
+工具栏或 Command／Ctrl+Shift+P 可打开命令面板。文件命令复用当前目录栏和键盘命令的门禁，自定义工具进入执行确认，固定及最近目录来自已有标签历史。比较结果可勾选并按指定方向预览复制计划。当前只计划普通文件且目标父目录须存在；同名差异交给队列按既有冲突流程处理。暂存架在当前浏览会话保留去重的普通文件引用，上限 500。可指定任一栏当前目录，核验后提交复制或移动，失效项留在暂存架供移除。命名工作区保存在本机，可载入、更新和删除；恢复双栏比例、活动栏、多目录行、目录标签及其状态，根授权沿用当前宿主。ZIP 支持浏览单卷 Store／Deflate 压缩包、预览 UTF-8 文本和逐项解压。包体上限 32 MiB，每项解压上限 8 MiB，校验条目路径、实际大小和 CRC。桌面使用系统保存对话框，并要求解压文件名尚未存在。
 
 ### 批量重命名
 

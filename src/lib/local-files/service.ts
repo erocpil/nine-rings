@@ -596,6 +596,10 @@ export const localFileService = {
       throw error;
     }
   },
+  async readZipPreview(rootId: string, node: string, signal?: AbortSignal): Promise<Blob> {
+    if (!/\.zip$/i.test(node)) throw new Error("不是 ZIP 文件");
+    return readPreviewAsset(rootId, node, "application/zip", signal, "blob");
+  },
   async readEpubPreview(rootId: string, node: string, signal?: AbortSignal): Promise<Blob> {
     const valid = guard(); signal?.throwIfAborted();
     if (!/\.epub$/i.test(node)) throw new Error("不是 EPUB 文件");
@@ -651,7 +655,7 @@ async function readPreviewAsset(rootId: string, node: string, mime: string, sign
   };
   if (isTauriRuntime()) {
     const before = await localFileService.stat(rootId, node); check();
-    if ((mime === "application/pdf" || mime === "application/epub+zip") && before.size > 32 * 1024 * 1024) throw new Error("阅读文件快速预览最多 32 MiB");
+    if ((mime === "application/pdf" || mime === "application/epub+zip" || mime === "application/zip") && before.size > 32 * 1024 * 1024) throw new Error("阅读文件快速预览最多 32 MiB");
     for (let offset = 0; offset < before.size;) {
       check(); const length = Math.min(786432, before.size - offset);
       const result = await native<ArrayBuffer | number[]>("local_files_read_asset", { rootId, node, offset, length });
@@ -670,7 +674,7 @@ async function readPreviewAsset(rootId: string, node: string, mime: string, sign
       file = await (await dir.getFileHandle(parts[parts.length - 1]!)).getFile();
     }
     if (!file) throw new Error("预览文件不可访问");
-    if ((mime === "application/pdf" || mime === "application/epub+zip") && file.size > 32 * 1024 * 1024) throw new Error("阅读文件快速预览最多 32 MiB");
+    if ((mime === "application/pdf" || mime === "application/epub+zip" || mime === "application/zip") && file.size > 32 * 1024 * 1024) throw new Error("阅读文件快速预览最多 32 MiB");
     for (let offset = 0; offset < file.size; offset += 786432) {
       check(); const chunk = new Uint8Array(await file.slice(offset, offset + 786432).arrayBuffer()); check(); await append(chunk);
     }

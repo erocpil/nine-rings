@@ -315,6 +315,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   } }));
   const openItem = (item: FileNode, system = false) => {
     if (item.directory) { navigate(item.id); return; }
+    if (workspace.zipArchive && !item.link && /\.zip$/i.test(item.name)) { onOpen(rootId, root?.name ?? rootId, item); return; }
     if (!item.link && system && compact && workspace.externalOpen) {
       workspace.assertActive();
       void workspace.externalOpen.open(rootId, item.id, false).catch(cause => showMessage(`系统打开失败：${String(cause)}`, "error"));
@@ -349,7 +350,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     } catch (cause) { showMessage(String(cause), "error"); }
   };
   const batchOpening = useRef(false);
-  const selectedEditorFiles = menu ? nodes.filter(item => menu.selection.includes(item.id) && !item.directory && !item.link && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif|pdf)$/i.test(item.name)) : [];
+  const selectedEditorFiles = menu ? nodes.filter(item => menu.selection.includes(item.id) && !item.directory && !item.link && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif|pdf|epub|zip)$/i.test(item.name)) : [];
   const openSelectedEditors = async () => {
     if (!workspace.openEditors || batchOpening.current || !selectedEditorFiles.length) return;
     batchOpening.current = true;
@@ -374,7 +375,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     ...(menu.selection.length > 1 && workspace.openEditors && selectedEditorFiles.length ? [{ label: `使用内置编辑器打开所选文件（${selectedEditorFiles.length}）`, run: () => { void openSelectedEditors(); } }] : []),
     ...(!compact || menu.selection.length === 1 ? [{ label: "打开", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) }] : []),
     ...(!compact || (menu.selection.length === 1 && !menu.item.directory && workspace.externalOpen) ? [{ label: "打开方式", disabled: menu.selection.length !== 1 || menu.item.directory, children: [
-      { label: "内置编辑器", run: () => openItem(menu.item) },
+      { label: workspace.zipArchive && /\.zip$/i.test(menu.item.name) ? "浏览 ZIP" : "内置编辑器", run: () => openItem(menu.item) },
       { label: "系统默认应用", disabled: !workspace.externalOpen, hint: !workspace.externalOpen ? "仅桌面版" : undefined, separator: true, run: () => openExternal(false) },
       { label: "其它应用程序…", disabled: !workspace.externalOpen, hint: !workspace.externalOpen ? "仅桌面版" : undefined, run: () => openExternal(true) },
     ] }] : []),

@@ -339,6 +339,7 @@ fn main() {
             local_files::local_files_stat,
             local_files::local_files_digest,
             local_files::local_files_save_as,
+            local_files::local_files_save_extracted,
             local_files::local_files_open_external,
             local_files::local_files_properties,
         ])

@@ -7,6 +7,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { strToU8, zipSync } from "fflate";
 
 // Exercise real native scrollbar hit testing, including edge-only reveal.
 test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
@@ -1404,6 +1405,29 @@ test("命名工作区重开后恢复多行目录、固定标签和分栏比例",
   await show();
   await dialog.getByRole("button", { name: "删除 项目浏览", exact: true }).click();
   await expect(dialog).toContainText("暂无已保存的工作区");
+});
+
+test("ZIP 只读浏览支持目录进入、UTF-8 预览和单项原字节解压", async ({ page }) => {
+  const folder = await mkdtemp(join(tmpdir(), "nr-workbench-zip-"));
+  try {
+    await writeFile(join(folder, "archive.zip"), zipSync({ "docs/guide.txt": strToU8("解压测试\n"), "binary.dat": Uint8Array.of(0, 255) }));
+    await page.goto("/file-workbench.html");
+    await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(folder);
+    const left = page.getByRole("region", { name: "左侧目录", exact: true });
+    await left.getByRole("option", { name: /^archive.zip/ }).dblclick();
+    const zip = page.getByRole("dialog", { name: "浏览 ZIP", exact: true });
+    await zip.getByRole("button", { name: "目录 · docs", exact: true }).click();
+    await zip.getByRole("button", { name: "文件 · guide.txt", exact: true }).click();
+    await expect(zip.getByRole("region", { name: "条目预览" })).toContainText("解压测试");
+    const pending = page.waitForEvent("download");
+    await zip.getByRole("button", { name: "解压所选文件", exact: true }).click();
+    const download = await pending;
+    expect(download.suggestedFilename()).toBe("guide.txt");
+    expect(await readFile((await download.path())!, "utf8")).toBe("解压测试\n");
+    await zip.getByRole("button", { name: "返回上级", exact: true }).click();
+    await zip.getByRole("button", { name: "文件 · binary.dat", exact: true }).click();
+    await expect(zip).toContainText("无 UTF-8 文本预览");
+  } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
 test("命令面板查找操作和固定、最近目录，并复用写入门禁", async ({ page }) => {

@@ -96,6 +96,18 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
     addFiles: files => localFileService.addFiles(files),
     async revokeRoot(rootId) { operations.assertIdle(); if (!directoryOperationsAllowed()) throw new Error("请先关闭独立编辑器，再撤销目录授权。"); await localFileService.remove(rootId); assertActive(); },
     externalOpen: isTauriRuntime() ? { open: (rootId, node, chooseApplication) => localFileService.openExternal(rootId, node, chooseApplication) } : undefined,
+    zipArchive: {
+      async read(rootId, node, signal) { assertActive(); const blob = await localFileService.readZipPreview(rootId, node, signal); assertActive(); return blob; },
+      async save(name, bytes) {
+        assertActive();
+        if (isTauriRuntime()) return invoke<boolean>("local_files_save_extracted", { name, bytes: Array.from(bytes) });
+        const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+        const link = document.createElement("a");
+        link.href = url; link.download = name;
+        try { link.click(); } finally { window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+        return true;
+      },
+    },
     systemProperties: isTauriRuntime() ? async (rootId, node) => (await localFileService.fileProperties(rootId, node, true)).systemShown ?? false : undefined,
     displayPath: (rootId, node) => localFileService.displayPath(rootId, node), absolutePaths: isTauriRuntime(),
     supportsDirectoryPicker: () => localFileService.supportsDirectoryPicker(),

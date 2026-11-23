@@ -1928,15 +1928,16 @@ fn read_asset_range(
             | "heif"
             | "pdf"
             | "epub"
+            | "zip"
     ) {
-        return Err("仅允许预览常见图片、PDF 或 EPUB 文件".into());
+        return Err("仅允许预览常见图片、PDF、EPUB 或 ZIP 文件".into());
     }
     let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
     let meta = file.metadata().map_err(|error| error.to_string())?;
     if !meta.is_file() {
         return Err("不是普通预览文件".into());
     }
-    if matches!(extension.as_str(), "pdf" | "epub") && meta.len() > 32 * 1024 * 1024 {
+    if matches!(extension.as_str(), "pdf" | "epub" | "zip") && meta.len() > 32 * 1024 * 1024 {
         return Err("阅读文件快速预览最多 32 MiB".into());
     }
     if length.is_some_and(|length| length == 0 || length > 1024 * 1024) {
@@ -1980,6 +1981,21 @@ pub async fn local_files_save_as(
     line_ending: String,
 ) -> Result<bool, String> {
     choose_save_file(app, window, name, source, bom, line_ending, |_| Ok(()))
+        .await
+        .map(|path| path.is_some())
+}
+
+#[tauri::command]
+pub async fn local_files_save_extracted(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    name: String,
+    bytes: Vec<u8>,
+) -> Result<bool, String> {
+    if bytes.len() > 8 * 1024 * 1024 {
+        return Err("单个解压文件最多 8 MiB".into());
+    }
+    choose_save_bytes_with_collision_policy(app, window, name, bytes, |_| Ok(()), false)
         .await
         .map(|path| path.is_some())
 }
@@ -2039,6 +2055,17 @@ pub(crate) async fn choose_save_bytes(
     bytes: Vec<u8>,
     before_write: impl Fn(&Path) -> Result<(), String> + Send + 'static,
 ) -> Result<Option<(PathBuf, u128)>, String> {
+    choose_save_bytes_with_collision_policy(app, window, name, bytes, before_write, true).await
+}
+
+async fn choose_save_bytes_with_collision_policy(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    name: String,
+    bytes: Vec<u8>,
+    before_write: impl Fn(&Path) -> Result<(), String> + Send + 'static,
+    replace_existing: bool,
+) -> Result<Option<(PathBuf, u128)>, String> {
     file_caller(&window)?;
     if name.is_empty() || name.len() > 255 || name.contains(['/', '\\', ':', '\0']) {
         return Err("文件名无效".into());
@@ -2058,6 +2085,9 @@ pub(crate) async fn choose_save_bytes(
             .map_err(|error| error.to_string())?;
         let target = parent.join(selected.file_name().ok_or("保存路径无效")?);
         let expected = save_as_revision(&target)?;
+        if !replace_existing && expected.is_some() {
+            return Err("解压目标已存在，请选择新文件名".into());
+        }
         before_write(&target)?;
         let _lease = scoped_caller(&window, false, vec![target.clone()])?;
         let modified_ms = write_save_as(&target, &bytes, expected, || {})?;
@@ -3193,6 +3223,16 @@ mod preview_properties_tests {
             .set_len(33 * 1024 * 1024)
             .unwrap();
         assert!(read_asset_range(&root, "large.pdf", 0, Some(3)).is_err());
+        fs::write(root.join("archive.zip"), b"PK test").unwrap();
+        assert_eq!(
+            read_asset_range(&root, "archive.zip", 0, Some(2)).unwrap(),
+            b"PK"
+        );
+        fs::File::create(root.join("large.zip"))
+            .unwrap()
+            .set_len(33 * 1024 * 1024)
+            .unwrap();
+        assert!(read_asset_range(&root, "large.zip", 0, Some(3)).is_err());
         fs::write(root.join("blocked.bin"), b"not a preview").unwrap();
         assert!(read_asset_range(&root, "blocked.bin", 0, Some(3)).is_err());
         let (_, details) = file_properties(&root, "large.png").unwrap();

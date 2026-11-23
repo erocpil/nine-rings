@@ -27,6 +27,10 @@ export interface BrowserWorkspaceHost {
   displayPath(rootId: string, node: string): Promise<string>;
   readonly externalOpen?: { open(rootId: string, node: string, chooseApplication: boolean): Promise<boolean> };
   systemProperties?(rootId: string, node: string): Promise<boolean>;
+  readonly zipArchive?: {
+    read(rootId: string, node: string, signal: AbortSignal): Promise<Blob>;
+    save(name: string, bytes: Uint8Array<ArrayBuffer>): Promise<boolean>;
+  };
   readonly absolutePaths: boolean;
   supportsDirectoryPicker(): boolean;
   supportsDirectoryChanges(rootId: string): boolean;

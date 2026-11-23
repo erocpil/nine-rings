@@ -13,7 +13,7 @@ import { WorkspaceDialog } from "./WorkspaceDialog";
 import { FileBrowserRootManager } from "./FileBrowserRootManager";
 import type { BrowserToolContext } from "../lib/local-files/browser-tool-context";
 import { FileBrowserRowCount } from "./FileBrowserRowCount";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type SetStateAction, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type SetStateAction, type ReactNode } from "react";
 import type { FileNode, FileRoot } from "../lib/local-files/file-model";
 import { FILE_BROWSER_STATE_KEY, browserLocation, navigateBrowserPane, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { MAX_BROWSER_TABS, browserTabAllows, browserTabAnchor, transferBrowserTab, revokeBrowserRoot, activeBrowserPanes, activateBrowserRow, browserSideRows, setBrowserRowCount, updateBrowserRow, addBrowserTab, revealBrowserFile, exchangeBrowserPanes, mirrorBrowserPath, modifyBrowserTabs, reorderBrowserTab, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
@@ -36,6 +36,8 @@ import "../styles/file-browser.css";
 import type { BrowserPreviewNavigation } from "../lib/local-files/browser-preview";
 import { BROWSER_DRAG_TYPE, planBrowserDrop, type BrowserDragSource } from "../lib/local-files/browser-drag";
 
+const FileBrowserArchive = lazy(() => import("./FileBrowserArchive").then(module => ({ default: module.FileBrowserArchive })));
+
 interface Props { workspace: BrowserWorkspaceHost; active: boolean; initialRootId?: string; revealFile?: { rootId: string; node: string }; onClose?: () => void; toolbarExtras?: ReactNode; commands?: FileBrowserCommand[]; onToolContext?: (context: BrowserToolContext | null) => void }
 export function FileBrowserWorkspace(props: Props) {
   return <FileBrowserHostContext.Provider value={props.workspace}><FileBrowserWorkspaceBody {...props} /></FileBrowserHostContext.Provider>;
@@ -43,6 +45,7 @@ export function FileBrowserWorkspace(props: Props) {
 function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile, onClose, toolbarExtras, commands = [], onToolContext }: Props) {
   const compact = workspace.presentation === "compact";
   const { shortcuts, mac } = useBrowserShortcuts(workspace.settings);
+  const [archive, setArchive] = useState<{ rootId: string; node: string }>();
   const [layoutsOpen, setLayoutsOpen] = useState(false);
   const [shelf, setShelf] = useState<BrowserShelfEntry[]>([]);
   const [shelfOpen, setShelfOpen] = useState(false);
@@ -108,7 +111,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
   const previewNavigation = useRef<[BrowserPreviewNavigation | null, BrowserPreviewNavigation | null]>([null, null]);
   const drag = useRef<{ token: string; source: BrowserDragSource } | null>(null);
   const provider = workspace.provider;
-  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); setPaletteOpen(false); setShelfOpen(false); setLayoutsOpen(false); setSizeScope(null); drag.current = null; } }, [active]);
+  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); setPaletteOpen(false); setShelfOpen(false); setLayoutsOpen(false); setArchive(undefined); setSizeScope(null); drag.current = null; } }, [active]);
   useEffect(() => workspace.subscribeMutations(change => {
     sizeCache.current.invalidate(change.rootId);
     if (change.targetRootId) sizeCache.current.invalidate(change.targetRootId);
@@ -240,6 +243,9 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
   };
   const open = async (rootId: string, rootName: string, node: FileNode, location?: BrowserTextLocation, siblings?: readonly FileNode[]) => {
     if (opening || !activity.current) return;
+    if (workspace.zipArchive && !node.directory && !node.link && /\.zip$/i.test(node.name)) {
+      setArchive({ rootId, node: node.id }); return;
+    }
     const controller = activity.current;
     setOpening(true); setError("");
     try { await provider.open(rootId, rootName, node, controller.signal, location, siblings); }
@@ -407,6 +413,9 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       catch (reason) { setError(String(reason)); }
       event.currentTarget.value = "";
     }} />
+    {archive && workspace.zipArchive && active && <FileBrowserToolDialog title="浏览 ZIP" onClose={() => setArchive(undefined)}>
+      <Suspense fallback={<p role="status">正在加载 ZIP 浏览…</p>}><FileBrowserArchive archive={archive} port={workspace.zipArchive} /></Suspense>
+    </FileBrowserToolDialog>}
     {layoutsOpen && active && <FileBrowserNamedWorkspaces current={state} store={workspace.settings}
       onLoad={async (layout, signal) => {
         const allowed = await workspace.roots();
