@@ -1,5 +1,4 @@
-import { useDocumentWorkspace } from "../hooks/useDocumentWorkspace";
-import { saveDocumentDock, saveDocumentWorkspaceMode } from "../lib/document-workspace-layout";
+import { DocumentWorkspaceModeControl } from "./DocumentWorkspaceModeControl";
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
 import {
   saveWorkspaceLayout,
@@ -13,7 +12,6 @@ export function SettingsWorkspaceLayout({
   onError: (message: string) => void;
 }) {
   const layout = useWorkspaceLayout();
-  const documentWorkspace = useDocumentWorkspace();
   const save = (patch: Partial<WorkspaceLayout>) => {
     if (!saveWorkspaceLayout(patch))
       onError("布局设置保存失败，请检查本机存储权限。");
@@ -24,12 +22,7 @@ export function SettingsWorkspaceLayout({
         <div className="sidebar-settings-card-heading"><strong>文档工作区布局</strong></div>
         {([["database", "Nine Rings 文档布局"], ["local", "本地文件布局"]] as const).map(([origin, label]) => <div key={origin}>
           <p className="sidebar-presentation-description">{label}</p>
-          <div className="settings-radio-group" role="group" aria-label={label}>
-            {([["document", "文档布局"], ["compact", "紧凑布局"]] as const).map(([mode, name]) => <button key={mode} type="button" className={`settings-radio ${documentWorkspace[origin] === mode ? "active" : ""}`} aria-pressed={documentWorkspace[origin] === mode}
-              onClick={() => { if (!saveDocumentWorkspaceMode(origin, mode)) onError("工作区布局保存失败，请重试。"); }}>{name}</button>)}
-          </div>
-          {documentWorkspace.docks?.[origin] && <button type="button" className="btn-secondary"
-            onClick={() => { if (!saveDocumentDock(origin, () => undefined)) onError("面板布局恢复失败，请重试。"); }}>恢复默认面板布局</button>}
+          <DocumentWorkspaceModeControl origin={origin} label={label} onError={onError} />
         </div>)}
         <p className="sidebar-presentation-description">文档布局默认可固定多个面板，紧凑布局默认一次固定一个。桌面上可把工具栏按钮或固定面板标题拖到现有面板，叠放或合并为标签组。手机使用弹层和抽屉。</p>
       </div>

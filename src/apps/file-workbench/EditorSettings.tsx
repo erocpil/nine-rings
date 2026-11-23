@@ -2,6 +2,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { EditorAppearancePanel } from "../../components/EditorAppearancePanel";
 import { EditorSettingsContent } from "../../components/EditorSettingsContent";
+import { DocumentWorkspaceModeControl } from "../../components/DocumentWorkspaceModeControl";
+import { Field } from "../../components/SettingsFields";
 import { WorkspaceDialog } from "../../components/WorkspaceDialog";
 import { DEFAULT_CONFIG } from "../../lib/storage/types";
 import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspace-contract";
@@ -48,6 +50,9 @@ export function WorkbenchEditorSettingsDialog({ typography, config, store, onClo
   return <WorkspaceDialog title="编辑器设置" onClose={onClose}>
     <div className="workbench-editor-settings">
       {error && <p role="alert">{error}</p>}
+      <Field label="固定面板布局" desc="文档布局可同时固定多个面板；紧凑布局默认一次固定一个。拖拽形成的自定义布局优先，恢复默认面板布局可清除自定义排列。">
+        <DocumentWorkspaceModeControl origin="local" label="固定面板布局模式" onError={setError} />
+      </Field>
       <EditorSettingsContent config={editorConfig} openAppearance={() => setDraft({})}
         update={patch => update(() => { saveWorkbenchEditorSettings(store, readWorkbenchEditorSettings(store), patch); })}
         palette={<select className="settings-input" aria-label="配色" value={palette} onChange={event => update(() => choosePalette(event.target.value))}>

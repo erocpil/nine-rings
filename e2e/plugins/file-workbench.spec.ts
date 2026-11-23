@@ -2432,6 +2432,52 @@ test("磁盘书签跨源码和渲染修改后，保存重开仍定位到原内�
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(savedSource.indexOf("bookmark"));
 });
 
+test("编辑器设置切换固定面板布局，源码与渲染共享多面板设置", async ({ page }) => {
+  await setupIndependentEditor(page, {
+    "alpha.c": "int value;\nint read_value(void) { return value; }\n",
+    "guide.md": "# Guide\n\n## Chapter\n\nBody\n",
+  });
+  const dock = page.getByRole("complementary", { name: "固定阅读面板" });
+  const settings = page.getByRole("dialog", { name: "编辑器设置", exact: true });
+  const mode = (name: string) => settings.getByRole("group", { name: "固定面板布局模式" }).getByRole("button", { name, exact: true });
+  const openSettings = () => page.getByRole("button", { name: "编辑器设置", exact: true }).click();
+  const closeSettings = () => settings.getByRole("button", { name: "关闭编辑器设置" }).click();
+  const outline = dock.locator('[data-panel="outline"]');
+  const bookmark = dock.locator('[data-panel="bookmark"]');
+  await openSettings();
+  await expect(mode("紧凑布局")).toHaveAttribute("aria-pressed", "true");
+  await mode("文档布局").click();
+  await closeSettings();
+  await page.getByRole("button", { name: "源码符号", exact: true }).click();
+  await page.getByRole("button", { name: "书签", exact: true }).click();
+  await page.getByRole("button", { name: "同词匹配", exact: true }).click();
+  await expect(outline).toBeVisible();
+  await expect(bookmark).toBeVisible();
+  await expect(dock.getByRole("complementary", { name: "本地文件同词匹配" })).toBeVisible();
+  await expect.poll(async () => (await bookmark.boundingBox())!.y - (await outline.boundingBox())!.y).toBeGreaterThan(0);
+
+  await page.getByRole("tab", { name: "guide.md", exact: true }).click();
+  await expect(page.locator(".ProseMirror:visible")).toContainText("Body");
+  await expect(outline).toBeVisible();
+  await expect(bookmark).toBeVisible();
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await expect(page.locator(".cm-content:visible")).toContainText("# Guide");
+  await expect(outline).toBeVisible();
+  await expect(bookmark).toBeVisible();
+  await page.reload();
+  await expect(outline).toBeVisible();
+  await expect(bookmark).toBeVisible();
+  await openSettings();
+  await expect(mode("文档布局")).toHaveAttribute("aria-pressed", "true");
+  await mode("紧凑布局").click();
+  await closeSettings();
+  await page.getByRole("button", { name: "目录", exact: true }).click();
+  await expect(outline).toBeVisible();
+  await page.getByRole("button", { name: "书签", exact: true }).click();
+  await expect(bookmark).toBeVisible();
+  await expect(outline).toHaveCount(0);
+});
+
 test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅在适用文件展示", async ({ page }) => {
   await page.addInitScript(() => {
     let id = 1;
