@@ -79,6 +79,31 @@ it("file language overrides stay in the host settings and do not change filename
   expect([...data.keys()]).toEqual(["language:root:example.txt"]);
 });
 
+it("defaults legacy tab widths to eight half-width characters and persists valid widths", () => {
+  let value = '{"editor_show_line_numbers":false}';
+  const store = {
+    getItem: () => value,
+    setItem: (_key: string, next: string) => {
+      value = next;
+    },
+  };
+  const settings = readWorkbenchEditorSettings(store);
+  expect(settings.tab_width_chars).toBe(8);
+  expect(settings.shrink_short_tabs).toBe(false);
+  const updated = saveWorkbenchEditorSettings(store, settings, {
+    tab_width_chars: 18,
+    shrink_short_tabs: true,
+  });
+  expect(readWorkbenchEditorSettings(store)).toEqual(updated);
+  expect(updated.tab_width_chars).toBe(18);
+  expect(updated.shrink_short_tabs).toBe(true);
+  expect(updated.editor_show_line_numbers).toBe(false);
+  for (const candidate of [0, 100, 7.5, "16", null]) {
+    value = JSON.stringify({ tab_width_chars: candidate });
+    expect(readWorkbenchEditorSettings(store).tab_width_chars).toBe(8);
+  }
+});
+
 it("notifies retained sessions only after successful persistence", () => {
   const target = new EventTarget();
   vi.stubGlobal("window", target);

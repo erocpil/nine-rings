@@ -4710,6 +4710,20 @@ test("编辑标签等宽，提示区分文件名和目录，悬停和键盘聚�
   await expect(tab).toHaveText(long);
   await expect(mediumTab).toHaveText(medium);
   expect(await overflows(short)).toBe(false);
+  const defaultWidth = (await tab.boundingBox())!.width;
+  const dialog = page.getByRole("dialog", { name: "编辑器设置", exact: true });
+  const widthSetting = dialog.getByRole("combobox", { name: "文件标签宽度", exact: true });
+  const openSettings = () => page.getByRole("button", { name: "编辑器设置", exact: true }).click();
+  await openSettings();
+  await expect(widthSetting).toHaveValue("8");
+  await widthSetting.selectOption("16");
+  await expect.poll(async () => (await tab.boundingBox())!.width).toBeGreaterThan(defaultWidth + 24);
+  const wideWidth = (await tab.boundingBox())!.width;
+  await page.reload();
+  await expect.poll(async () => (await tab.boundingBox())?.width).toBe(wideWidth);
+  await openSettings();
+  await expect(widthSetting).toHaveValue("16");
+  await dialog.getByRole("button", { name: "关闭编辑器设置" }).click();
   expect(await overflows(mediumTab)).toBe(false);
   expect(await overflows(tab)).toBe(true);
   const idleLabelWidth = (await label.boundingBox())!.width;
@@ -4758,6 +4772,44 @@ test("编辑标签等宽，提示区分文件名和目录，悬停和键盘聚�
   await expect(close).toHaveCSS("opacity", "1");
   await close.press("Enter");
   await expect(tab).toHaveCount(0);
+});
+
+test("编辑标签可随短名称收缩，长名称沿用宽度上限", async ({ page }) => {
+  const long = "甲乙丙丁戊己庚辛壬癸.txt";
+  await setupIndependentEditor(page, { "alpha.c": "int alpha;", a: "short", [long]: "long" });
+  const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
+  const short = tabs.getByRole("tab", { name: "a", exact: true });
+  const wide = tabs.getByRole("tab", { name: long, exact: true });
+  const close = tabs.getByRole("button", { name: "关闭 a", exact: true });
+  const settings = page.getByRole("dialog", { name: "编辑器设置", exact: true });
+  const mode = settings.getByRole("combobox", { name: "短文件名标签", exact: true });
+  const openSettings = () => page.getByRole("button", { name: "编辑器设置", exact: true }).click();
+  const width = async (tab: typeof short) => (await tab.boundingBox())?.width;
+  await expect(short).toBeVisible();
+  const fixed = (await width(wide))!;
+  expect(await width(short)).toBe(fixed);
+  await openSettings();
+  await expect(mode).toHaveValue("fixed");
+  await mode.selectOption("shrink");
+  await expect.poll(() => width(short)).toBeLessThan(fixed);
+  expect(await width(wide)).toBe(fixed);
+  const reduced = await width(short);
+  await settings.getByRole("button", { name: "关闭编辑器设置" }).click();
+  const shortBox = (await short.boundingBox())!;
+  expect(shortBox.x + shortBox.width / 2).toBeLessThan((await close.boundingBox())!.x);
+  await short.hover({ position: { x: 9, y: 12 } });
+  await expect(close).toHaveCSS("opacity", "1");
+  const label = await short.locator(".workbench-editor-tab-name").boundingBox();
+  expect(label!.x + label!.width).toBeLessThanOrEqual((await close.boundingBox())!.x);
+  expect(await width(short)).toBe(reduced);
+  await short.click({ position: { x: 9, y: 12 } });
+  await expect(short).toHaveAttribute("aria-selected", "true");
+  await page.reload();
+  await expect.poll(() => width(short)).toBe(reduced);
+  await openSettings();
+  await expect(mode).toHaveValue("shrink");
+  await mode.selectOption("fixed");
+  await expect.poll(() => width(short)).toBe(fixed);
 });
 
 test("编辑标签拖拽和菜单排序会持久保存，关闭其它标签保留未保存内容", async ({ page }) => {

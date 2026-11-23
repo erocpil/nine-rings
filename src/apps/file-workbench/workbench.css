@@ -197,17 +197,24 @@ html:where([data-workbench-palette]) :where(.workspace-dialog, dialog[open], [ro
 .workbench-editor-tabs::-webkit-scrollbar { display: none; }
 .workbench-editor-tab {
   --editor-tab-bg: var(--bg-secondary);
+  /* Name space plus horizontal padding and the tab divider. */
+  --editor-tab-maximum-width: calc(var(--editor-tab-name-width) + 17px);
   position: relative;
   display: flex;
-  flex: 0 0 121px;
-  /* Eight full-width glyphs, horizontal padding, and the tab divider. */
-  flex-basis: calc(8ic + 17px);
+  flex: 0 0 var(--editor-tab-maximum-width);
   min-inline-size: 0;
   align-items: stretch;
   border-inline-end: 1px solid var(--border);
   background: var(--disk-change-tab-background, var(--editor-tab-bg));
   font-size: 13px;
   user-select: none;
+}
+.workbench-editor-tabs[data-shrink-short-tabs] > .workbench-editor-tab {
+  /* Reserve the close button beside short names so hovering keeps tabs in place. */
+  --editor-tab-end-padding: 26px;
+  flex-basis: max-content;
+  min-inline-size: min(50px, var(--editor-tab-maximum-width));
+  max-inline-size: var(--editor-tab-maximum-width);
 }
 .workbench-editor-tab[data-active] { --editor-tab-bg: var(--active-bg); }
 .workbench-editor-tab[data-disk-changed] { box-shadow: inset 0 2px var(--disk-change-tab-marker); }

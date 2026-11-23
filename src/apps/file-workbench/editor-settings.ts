@@ -5,7 +5,9 @@ import { DEFAULT_EDITOR_FOLD_ICONS } from "../../lib/editor-fold-icons";
 
 export const EDITOR_SETTINGS_KEY = "source-editor";
 export const EDITOR_SETTINGS_EVENT = "file-workbench:editor-settings";
-export type WorkbenchEditorSettings = Pick<AppConfig, "editor_show_line_numbers" | "highlight_active_line" | "editor_show_status_bar" | "editor_show_status_block_number" | "use_custom_context_menu" | "editor_fold_icon_overrides" | "editor_fold_icon_style" | "editor_fold_icon_collapsed" | "editor_fold_icon_expanded">;
+export const WORKBENCH_TAB_WIDTH = { default: 8, min: 6, max: 32 } as const;
+type TabWidthSetting = { tab_width_chars: number; shrink_short_tabs: boolean };
+export type WorkbenchEditorSettings = Pick<AppConfig, "editor_show_line_numbers" | "highlight_active_line" | "editor_show_status_bar" | "editor_show_status_block_number" | "use_custom_context_menu" | "editor_fold_icon_overrides" | "editor_fold_icon_style" | "editor_fold_icon_collapsed" | "editor_fold_icon_expanded"> & TabWidthSetting;
 
 function normalize(value: Partial<WorkbenchEditorSettings>): WorkbenchEditorSettings {
   const symbol = (text: unknown, fallback: string) => typeof text === "string" && text.trim() && [...text].length <= 8 ? text : fallback;
@@ -21,6 +23,10 @@ function normalize(value: Partial<WorkbenchEditorSettings>): WorkbenchEditorSett
     }
   }
   return {
+    shrink_short_tabs: value.shrink_short_tabs === true,
+    tab_width_chars: typeof value.tab_width_chars === "number" && Number.isInteger(value.tab_width_chars) &&
+      value.tab_width_chars >= WORKBENCH_TAB_WIDTH.min && value.tab_width_chars <= WORKBENCH_TAB_WIDTH.max
+      ? value.tab_width_chars : WORKBENCH_TAB_WIDTH.default,
     highlight_active_line: value.highlight_active_line !== false,
     editor_show_status_bar: value.editor_show_status_bar !== false,
     editor_show_status_block_number: value.editor_show_status_block_number !== false,
@@ -37,7 +43,7 @@ export function readWorkbenchEditorSettings(store: BrowserSettingsStore): Workbe
   catch { return normalize({}); }
 }
 /** Persist first: a failed write must not report success or change the live view. */
-export function saveWorkbenchEditorSettings(store: BrowserSettingsStore, current: WorkbenchEditorSettings, patch: Partial<AppConfig>): WorkbenchEditorSettings {
+export function saveWorkbenchEditorSettings(store: BrowserSettingsStore, current: WorkbenchEditorSettings, patch: Partial<AppConfig & TabWidthSetting>): WorkbenchEditorSettings {
   const next = normalize({ ...current, ...patch });
   store.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(next));
   if (typeof window !== "undefined") window.dispatchEvent(new Event(EDITOR_SETTINGS_EVENT));

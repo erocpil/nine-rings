@@ -15,6 +15,7 @@ import type { createWorkbenchHost } from "./host";
 import { installWorkbenchClose, type WorkbenchCloseRequest, type WorkbenchCloseDecision } from "./native-lifecycle";
 import { editorSessionKey, editorWindowPort, watchWorkbenchEditor, type WorkbenchEditorPort, type WorkbenchEditorState } from "./editor-window";
 import { moveWorkbenchFilePreferences } from "./file-path-state";
+import { EDITOR_SETTINGS_EVENT, readWorkbenchEditorSettings } from "./editor-settings";
 const BufferView = lazy(() => import("./BufferSourceView").then(module => ({ default: module.BufferSourceView })));
 const SourceView = lazy(() => import("./SourceView").then(module => ({ default: module.WorkbenchSourceView })));
 
@@ -37,6 +38,20 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   const container = useRef<HTMLDivElement>(null);
   const closing = useRef<{ token: number; ids: string[]; index: number; discardUntitled: string[] } | null>(null);
   const tabClosing = useRef<{ id: string; cancel: () => void } | null>(null);
+  const settings = host.workspace.settings;
+  const [tabWidth, setTabWidth] = useState(() => readWorkbenchEditorSettings(settings).tab_width_chars);
+  const [shrinkShortTabs, setShrinkShortTabs] = useState(() => readWorkbenchEditorSettings(settings).shrink_short_tabs);
+  useEffect(() => {
+    const sync = () => {
+      const preferences = readWorkbenchEditorSettings(settings);
+      setTabWidth(preferences.tab_width_chars);
+      setShrinkShortTabs(preferences.shrink_short_tabs);
+    };
+    window.addEventListener(EDITOR_SETTINGS_EVENT, sync);
+    window.addEventListener("storage", sync);
+    sync();
+    return () => { window.removeEventListener(EDITOR_SETTINGS_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, [settings]);
   useWorkbenchPalette(host.workspace.settings);
   const [quitHint, setQuitHint] = useState("");
   useEffect(() => {
@@ -215,7 +230,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   return <main className="file-workbench-app workbench-editor-window">
     {quitHint && <div className="workbench-quit-overlay"><div className="workbench-quit-card" role="status"><kbd>⌘Q</kbd><strong>{quitHint}</strong><span>继续使用则无需操作</span></div></div>}
     {error && <WorkspaceDialog title="编辑器操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
-    <EditorFileTabs files={state.files} current={current} dirty={dirty} changed={pendingDiskChanges} select={select} close={id => closeTabs([id])} closeMany={closeTabs} discard={setDiscard} reorder={reorderTab} reveal={id => { void port.showBrowser(id).catch(report); }} report={report} />
+    <EditorFileTabs files={state.files} current={current} dirty={dirty} changed={pendingDiskChanges} widthChars={tabWidth} shrinkShortTabs={shrinkShortTabs} select={select} close={id => closeTabs([id])} closeMany={closeTabs} discard={setDiscard} reorder={reorderTab} reveal={id => { void port.showBrowser(id).catch(report); }} report={report} />
     <div ref={container} className="file-workbench-content workbench-editor-sessions" />
     {state.files.map(item => {
       let closeRequest = closeRefs.current.get(item.id);

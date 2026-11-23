@@ -1,5 +1,5 @@
 import type { DiskChange } from "../../lib/local-files/disk-changes";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { NotesContextMenu, type NotesMenuTarget } from "../../components/NotesContextMenu";
 import { ToolbarIcon } from "../../components/ToolbarIcon";
 import { copyToClipboard } from "../../lib/clipboard";
@@ -24,8 +24,10 @@ function containingDirectory(path?: string | null) {
 type Drop = { anchor: string; after: boolean };
 type Drag = { id: string; pointerId: number; startX: number; startY: number; x: number; y: number; moved: boolean; drop?: Drop };
 
-export function EditorFileTabs({ files, current, dirty, changed, select, close, closeMany, discard, reorder, reveal, report }: {
+export function EditorFileTabs({ files, current, dirty, changed, widthChars, shrinkShortTabs, select, close, closeMany, discard, reorder, reveal, report }: {
   files: WorkbenchEditorSession[]; current: string | null; dirty: Record<string, boolean>; changed: DiskChange[];
+  widthChars: number;
+  shrinkShortTabs: boolean;
   select: (id: string) => void; close: (id: string) => void; closeMany: (ids: string[]) => void;
   discard: (id: string) => void; reorder: (id: string, anchor: string, after: boolean) => void;
   reveal: (id: string) => void; report: (error: unknown) => void;
@@ -83,7 +85,9 @@ export function EditorFileTabs({ files, current, dirty, changed, select, close, 
   const directory = containingDirectory(path);
   const copy = (text: string) => { void copyToClipboard(text, { reportFailure: true }).catch(report); };
   return <>
-    <div className="workbench-editor-tabs" ref={root} role="tablist" aria-label="编辑文件标签" onWheel={event => {
+    <div className="workbench-editor-tabs" ref={root} role="tablist" aria-label="编辑文件标签"
+      data-shrink-short-tabs={shrinkShortTabs || undefined}
+      style={{ "--editor-tab-name-width": `${widthChars}ch` } as CSSProperties} onWheel={event => {
       if (!root.current || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
       root.current.scrollLeft += event.deltaY;
     }} onKeyDown={event => {
