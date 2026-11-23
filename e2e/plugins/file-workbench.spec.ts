@@ -1296,6 +1296,7 @@ async function setupRoadmapFileBrowser(page: Page, entries: Record<string, strin
       if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
       if (command === "workbench_window_role") return "browser";
       if (command === "workbench_editor_presence") return { present: false, revision: 0 };
+      if (command === "workbench_open_editor") { (window as any).__roadmapEditor = args; return; }
       if (command === "local_files_roots") return [{ id: "root", name: "Root" }];
       if (command === "local_files_display_path") return ["/fixture", args.node].filter(Boolean).join("/");
       if (command === "local_files_list") return { nodes: Object.entries(tree).filter(([id]) => id.split("/").slice(0, -1).join("/") === args.node).map(([id, source]) => ({ id, name: id.split("/").pop(), directory: source === null, size: source?.length ?? 0 })), next: null };
@@ -1331,6 +1332,23 @@ test("目录比较复制计划经确认后只入队已选的可复制差异", as
   expect(await page.evaluate(() => (window as any).__roadmapTransfers)).toEqual([]);
   await review.getByRole("button", { name: "确认加入队列" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__roadmapTransfers)).toEqual(["to/one.txt"]);
+});
+
+test("目录比较的双文件差异可核对逐行内容并打开对应编辑行", async ({ page }) => {
+  await setupRoadmapFileBrowser(page, { "from/a.txt": "same\nbefore\n", "to/a.txt": "same\nafter\n" });
+  await page.getByRole("button", { name: "比较目录", exact: true }).click();
+  const comparison = page.getByRole("dialog", { name: "目录比较", exact: true });
+  await comparison.getByRole("button", { name: "查看差异 a.txt", exact: true }).click();
+  const diff = comparison.getByRole("region", { name: "双文件差异" });
+  await expect(diff).toContainText("1 行移除 / 1 行新增");
+  await expect(diff.locator(".document-diff-line.removed")).toContainText("before");
+  await expect(diff.locator(".document-diff-line.added")).toContainText("after");
+  await diff.getByRole("combobox", { name: "打开哪一侧" }).selectOption("1");
+  await diff.getByRole("spinbutton", { name: "行号" }).fill("2");
+  await diff.getByRole("button", { name: "在编辑器打开该行" }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__roadmapEditor)).toEqual({
+    rootId: "root", node: "to/a.txt", location: { from: 5, to: 10, revision: "same\nafter\n" },
+  });
 });
 
 test("命令面板查找操作和固定、最近目录，并复用写入门禁", async ({ page }) => {

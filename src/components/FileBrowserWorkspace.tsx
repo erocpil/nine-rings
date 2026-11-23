@@ -393,6 +393,6 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
           queue.enqueueBatch(operations.map(operation => ({ operation, name: "" })));
           setTool(null); setQueueOpen(true);
         },
-      } : undefined} onOpen={(side, node) => { const directory = tool.directories[side]; setTool(null); setQuickPreview(false); setState(current => ({ ...current, active: side })); if (node.directory) changePane(side, current => navigateBrowserPane(current, directory.rootId, node.id)); else void open(directory.rootId, roots.find(root => root.id === directory.rootId)?.name ?? directory.rootId, node); }} />}</FileBrowserToolDialog>}
+      } : undefined} onOpen={(side, node, location) => { const directory = tool.directories[side]; setTool(null); setQuickPreview(false); setState(current => ({ ...current, active: side })); if (node.directory) changePane(side, current => navigateBrowserPane(current, directory.rootId, node.id)); else void open(directory.rootId, roots.find(root => root.id === directory.rootId)?.name ?? directory.rootId, node, location); }} />}</FileBrowserToolDialog>}
   </section></FileBrowserDragContext.Provider>;
 }

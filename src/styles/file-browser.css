@@ -318,3 +318,5 @@
 .file-browser-plan-items { display: grid; gap: 6px; max-height: 45dvh; overflow: auto; padding: 0 6px; list-style: none; }
 .file-browser-plan-items li { display: grid; gap: 2px; overflow-wrap: anywhere; border-bottom: 1px solid var(--border); padding: 4px 0; }
 .file-browser-plan-items li > span { color: var(--text-secondary); }
+.file-browser-text-comparison .document-diff-columns { height: min(46dvh, 440px); }
+.file-browser-text-comparison input[type="number"] { width: 5em; }

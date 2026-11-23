@@ -7,20 +7,26 @@ import { localMarkdownLink } from "./markdown-links";
 /** One read/preview/compare implementation for every application host. */
 export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): BrowserDirectoryProvider {
   const check = (signal: AbortSignal) => { signal.throwIfAborted(); host.assertActive(); };
+  const textSnapshot = async (rootId: string, node: string, signal: AbortSignal) => {
+    check(signal);
+    const before = await host.files.stat(rootId, node);
+    check(signal);
+    if (before.size > MAX_SOURCE_BYTES) throw new Error("正文比较单文件最多 4 MiB");
+    const snapshot = await host.files.readSnapshot(rootId, node);
+    check(signal);
+    const after = await host.files.stat(rootId, node);
+    check(signal);
+    if (before.size !== snapshot.size || before.modifiedMs !== snapshot.modifiedMs || before.size !== after.size || before.modifiedMs !== after.modifiedMs) throw new Error("正文读取期间文件已变化");
+    return snapshot;
+  };
   return {
+    textSnapshot,
     digestByteLimit: () => host.files.digestByteLimit(),
     async contentDigest(rootId: string, node: string, signal: AbortSignal, binary = false) {
       check(signal);
       if (binary) { const result = await host.files.digest(rootId, node); check(signal); return result; }
-      const before = await host.files.stat(rootId, node);
-      check(signal);
-      if (before.size > MAX_SOURCE_BYTES) throw new Error("正文比较单文件最多 4 MiB");
-      const snapshot = await host.files.readSnapshot(rootId, node);
-      check(signal);
-      const after = await host.files.stat(rootId, node);
-      check(signal);
-      if (before.size !== snapshot.size || before.modifiedMs !== snapshot.modifiedMs || before.size !== after.size || before.modifiedMs !== after.modifiedMs) throw new Error("正文读取期间文件已变化");
-      return { ...after, digest: snapshot.revision };
+      const snapshot = await textSnapshot(rootId, node, signal);
+      return { size: snapshot.size, modifiedMs: snapshot.modifiedMs, digest: snapshot.revision };
     },
     async preview(rootId: string, node: string, signal: AbortSignal): Promise<BrowserPreview> {
       check(signal);

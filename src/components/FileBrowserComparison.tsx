@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { compareBrowserDirectories, type BrowserDirectory, type ComparedBrowserEntry } from "../lib/local-files/browser-tools";
 import { planComparedCopies } from "../lib/local-files/browser-compare-plan";
 import type { BrowserOperation } from "../lib/local-files/browser-operation-contract";
-import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
+import { FileBrowserTextComparison } from "./FileBrowserTextComparison";
+import type { BrowserDirectoryProvider, BrowserTextLocation } from "../lib/local-files/browser-contract";
 import type { FileNode } from "../lib/local-files/service";
 const labels = { left: "仅左侧", right: "仅右侧", type: "类型不同", different: "元信息不同", metadata: "元信息一致", directory: "目录 · 见内部条目/深度限制", unknown: "未核验 · 未知", content: "正文相同（SHA-256）", "content-different": "正文不同（SHA-256）" };
-export function FileBrowserComparison({ directories, names, provider, onOpen, copyPlan }: { directories: [BrowserDirectory, BrowserDirectory]; names: [string, string]; provider: BrowserDirectoryProvider; onOpen: (side: 0 | 1, node: FileNode) => void; copyPlan?: { roots: [string, string]; submit: (operations: readonly BrowserOperation[]) => void } }) {
+export function FileBrowserComparison({ directories, names, provider, onOpen, copyPlan }: { directories: [BrowserDirectory, BrowserDirectory]; names: [string, string]; provider: BrowserDirectoryProvider; onOpen: (side: 0 | 1, node: FileNode, location?: BrowserTextLocation) => void; copyPlan?: { roots: [string, string]; submit: (operations: readonly BrowserOperation[]) => void } }) {
   const [rows, setRows] = useState<ComparedBrowserEntry[]>([]), [progress, setProgress] = useState("正在枚举目录…"), [error, setError] = useState(""), [busy, setBusy] = useState(true);
   const [query, setQuery] = useState(""), [page, setPage] = useState(0);
   const [depth, setDepth] = useState(0), [content, setContent] = useState(false);
   const [binary, setBinary] = useState(false);
   const [run, setRun] = useState({ depth: 0, content: false, binary: false, revision: 0 });
+  const [diffFiles, setDiffFiles] = useState<[FileNode, FileNode]>();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [from, setFrom] = useState<0 | 1>(0);
   const [review, setReview] = useState<ReturnType<typeof planComparedCopies>>();
@@ -30,6 +32,7 @@ export function FileBrowserComparison({ directories, names, provider, onOpen, co
   }, [directories, provider, run]);
   const filtered = rows.filter(row => row.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const lastPage = Math.max(0, Math.ceil(filtered.length / 200) - 1), currentPage = Math.min(page, lastPage);
+  if (diffFiles) return <FileBrowserTextComparison directories={directories} files={diffFiles} provider={provider} onBack={() => setDiffFiles(undefined)} onOpen={onOpen} />;
   if (review && copyPlan) return <section aria-label="复制计划">
     <p>{names[from]} → {names[from === 0 ? 1 : 0]}</p>
     <p role="status">计划复制 {review.operations.reduce((sum, operation) => sum + operation.nodes.length, 0)} 项，共 {review.operations.length} 个队列任务</p>
@@ -54,7 +57,8 @@ export function FileBrowserComparison({ directories, names, provider, onOpen, co
     <p role="status">{progress}</p>{error && <p role="alert">{error}</p>}
     <table className="file-browser-comparison-table"><thead><tr>{copyPlan && <th scope="col">选择</th>}<th>名称</th><th>结果</th><th>打开</th></tr></thead><tbody>{filtered.slice(currentPage * 200, (currentPage + 1) * 200).map(row => <tr key={row.name}>{copyPlan && <td><input type="checkbox" aria-label={`选中差异 ${row.name}`}
       checked={selected.has(row.name)} disabled={busy || (!selected.has(row.name) && selected.size >= 2000)}
-      onChange={event => { const checked = event.target.checked; setSelected(previous => { const next = new Set(previous); if (checked) next.add(row.name); else next.delete(row.name); return next; }); }} /></td>}<td title={row.name}>{row.name}</td><td>{run.binary && row.status === "content" ? "字节相同（SHA-256）" : run.binary && row.status === "content-different" ? "字节不同（SHA-256）" : labels[row.status]}{row.issue && <small className="file-browser-comparison-issue">{row.issue}</small>}</td><td>{row.left && <button type="button" aria-label={`左侧打开 ${row.name}`} onClick={() => onOpen(0, row.left!)}>左</button>}{row.right && <button type="button" aria-label={`右侧打开 ${row.name}`} onClick={() => onOpen(1, row.right!)}>右</button>}</td></tr>)}</tbody></table>
+      onChange={event => { const checked = event.target.checked; setSelected(previous => { const next = new Set(previous); if (checked) next.add(row.name); else next.delete(row.name); return next; }); }} /></td>}<td title={row.name}>{row.name}</td><td>{run.binary && row.status === "content" ? "字节相同（SHA-256）" : run.binary && row.status === "content-different" ? "字节不同（SHA-256）" : labels[row.status]}{row.issue && <small className="file-browser-comparison-issue">{row.issue}</small>}</td><td>{row.left && <button type="button" aria-label={`左侧打开 ${row.name}`} onClick={() => onOpen(0, row.left!)}>左</button>}{row.right && <button type="button" aria-label={`右侧打开 ${row.name}`} onClick={() => onOpen(1, row.right!)}>右</button>}{provider.textSnapshot && row.left && row.right && !row.left.directory && !row.right.directory && !row.left.link && !row.right.link &&
+      <button type="button" aria-label={`查看差异 ${row.name}`} onClick={() => setDiffFiles([row.left!, row.right!])}>差异</button>}</td></tr>)}</tbody></table>
     <footer><button type="button" disabled={currentPage === 0} onClick={() => setPage(value => value - 1)}>上一页</button><span>{currentPage + 1} / {lastPage + 1}</span><button type="button" disabled={currentPage >= lastPage} onClick={() => setPage(value => value + 1)}>下一页</button></footer>
   </section>;
 }

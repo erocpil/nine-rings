@@ -28,6 +28,7 @@ export interface BrowserDirectoryHost {
 }
 
 export interface BrowserDirectoryProvider {
+  textSnapshot?(rootId: string, node: string, signal: AbortSignal): Promise<LocalFileSnapshot>;
   digestByteLimit(): number;
   contentDigest(rootId: string, node: string, signal: AbortSignal, binary?: boolean): Promise<LocalFileDigest>;
   preview(rootId: string, node: string, signal: AbortSignal): Promise<BrowserPreview>;
