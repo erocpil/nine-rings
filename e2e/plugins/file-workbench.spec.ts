@@ -736,8 +736,21 @@ test("授权文件用共享修订协议保存；外部变化拒绝覆盖并保�
   await content.click(); await page.keyboard.press("ControlOrMeta+A"); await page.keyboard.insertText("int unsaved;\n");
   await page.evaluate(() => { (window as any).__workbenchFile.source = "int external;\n"; (window as any).__workbenchFile.modified++; });
   await page.keyboard.press("ControlOrMeta+S");
+  const saveConflict = page.getByRole("dialog", { name: "磁盘文件保存冲突", exact: true });
+  await expect(saveConflict.getByRole("alert")).toContainText("这次保存已暂停");
+  await expect(saveConflict.getByRole("button", { name: "另存为副本", exact: true })).toBeEnabled();
+  await saveConflict.getByRole("button", { name: "返回编辑", exact: true }).click();
+  await expect(content).toContainText("unsaved");
+  await view.getByRole("button", { name: "保存文件", exact: true }).click();
+  await saveConflict.getByRole("button", { name: "查看差异", exact: true }).click();
   const conflict = page.getByRole("dialog", { name: "磁盘版本比较", exact: true });
   await expect(conflict).toContainText("unsaved"); await expect(conflict).toContainText("external");
+  await conflict.getByRole("button", { name: "关闭磁盘版本比较", exact: true }).click();
+  await view.getByRole("button", { name: "保存文件", exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await saveConflict.getByRole("button", { name: "另存为副本", exact: true }).click();
+  expect(await readFile((await (await downloaded).path())!, "utf8")).toContain("int unsaved;");
+  await expect(content).toContainText("int unsaved;");
   expect(await page.evaluate(() => (window as any).__workbenchFile.writes)).toBe(1);
   expect(await page.evaluate(() => (window as any).__workbenchFile.source)).toBe("int external;\n");
 });
@@ -2146,6 +2159,7 @@ test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤�
   await paragraph.click(); await page.keyboard.press("End"); await page.keyboard.insertText(" precious");
   await page.evaluate(() => { (window as any).__markdownDisk.source = "# External revision\n"; (window as any).__markdownDisk.modified++; });
   await rendered.getByRole("button", { name: "保存文件", exact: true }).click();
+  await page.getByRole("dialog", { name: "磁盘文件保存冲突" }).getByRole("button", { name: "查看差异" }).click();
   await expect(page.getByRole("dialog", { name: "磁盘版本比较", exact: true })).toContainText("External revision");
   expect(await page.evaluate(() => (window as any).__markdownDisk.writes)).toBe(1);
   expect((await page.evaluate(() => indexedDB.databases())).map(item => item.name)).not.toContain("nine_rings");
@@ -2833,6 +2847,13 @@ test("独立编辑器发现同长度的外部修改，确认后保留源码光�
   });
   const load = page.getByRole("button", { name: "载入磁盘版本", exact: true });
   await expect(load).toBeVisible();
+  const notice = page.getByRole("region", { name: "磁盘文件变更", exact: true });
+  await expect(notice).toHaveCSS("background-color", "rgb(38, 54, 77)");
+  await expect.poll(async () => Math.round((await load.boundingBox())!.height)).toBeGreaterThanOrEqual(36);
+  await expect.poll(() => notice.evaluate(element => {
+    const title = element.closest(".workbench-source-view")!.querySelector(".document-title-bar")!;
+    return element.getBoundingClientRect().top - title.getBoundingClientRect().bottom;
+  })).toBeGreaterThanOrEqual(0);
   await expect(content).toContainText("return 1");
   await load.click();
   await expect(content).toContainText("return 8");

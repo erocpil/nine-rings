@@ -1,9 +1,8 @@
 import type { LocalFileSnapshot } from "./file-model";
 
-export interface DiskChange {
-  id: string;
-  name: string;
-  path: string;
+export type DiskFile = { id: string; name: string; path: string };
+
+export interface DiskChange extends DiskFile {
   disk: LocalFileSnapshot;
   dirty: boolean;
   later: boolean;
@@ -14,11 +13,13 @@ export interface DiskChangeActions {
   load(revision: string, discard?: boolean): Promise<boolean>;
   saveCopy?(): void;
   canOverwrite?(): boolean;
-  overwrite?(): void;
+  overwrite?(disk: LocalFileSnapshot): void;
+  canDiscard?: boolean;
 }
 
 export class DiskChanges {
   private changes: DiskChange[] = [];
+  private saveConflict: DiskFile | null = null;
   private listeners = new Set<() => void>();
   readonly actions = new Map<string, DiskChangeActions>();
 
@@ -28,9 +29,28 @@ export class DiskChanges {
   };
   snapshot = () => this.changes;
 
+  conflict = () => this.saveConflict;
+
+  reportSaveConflict(file: DiskFile, disk: LocalFileSnapshot | null) {
+    this.saveConflict = file;
+    if (disk) this.record({ ...file, disk, dirty: true });
+    else this.clear(file.id);
+    this.notify();
+  }
+
+  dismissSaveConflict(id: string) {
+    if (this.saveConflict?.id !== id) return;
+    this.saveConflict = null;
+    this.notify();
+  }
+
+  private notify() {
+    for (const listener of this.listeners) listener();
+  }
+
   private update(changes: DiskChange[]) {
     this.changes = changes;
-    for (const listener of this.listeners) listener();
+    this.notify();
   }
 
   record(change: Omit<DiskChange, "later">) {

@@ -5,11 +5,75 @@
   align-items: center;
   gap: .4rem .65rem;
 }
+.disk-change-slot {
+  display: contents;
+}
 .disk-change-notice {
   flex: none;
-  padding: .35rem .7rem;
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: .45rem .65rem;
+  color: var(--text, CanvasText);
+  font-size: .9rem;
+}
+.disk-change-notice[data-expanded="true"] {
+  margin: .2rem .5rem .3rem;
+  padding: .55rem .7rem;
+  color: #fff;
+  background: #26364d;
+  border-radius: .35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.disk-change-notice > [role="status"] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.disk-change-notice button {
+  max-width: 100%;
+  min-height: 36px;
+  padding: .35rem .65rem;
+  border: 1px solid var(--border, GrayText);
+  border-radius: .3rem;
+  background: var(--surface, Canvas);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.disk-change-notice[data-expanded="true"] button {
+  border-color: #8c9bb1;
+  background: #354863;
+}
+.disk-change-notice[data-expanded="true"] button:not(:disabled):hover {
+  background: #435a79;
+}
+.disk-change-notice[data-expanded="true"] .disk-change-primary {
+  color: #17263c;
+  background: #e0edff;
+  border-color: #e0edff;
+}
+.disk-change-notice[data-expanded="true"] .disk-change-primary:not(:disabled):hover {
+  background: #fff;
+}
+.disk-change-notice[data-expanded="true"] button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.disk-change-notice button:disabled {
+  opacity: .55;
+}
+@media (pointer: coarse) {
+  .disk-change-notice button {
+    min-height: 44px;
+  }
+}
+.disk-save-conflict {
+  padding: .7rem 1rem;
+  overflow-wrap: anywhere;
+}
+.disk-save-conflict small {
+  display: block;
   color: var(--text-secondary, inherit);
-  font-size: .875rem;
 }
 .disk-change-badge {
   flex: none;

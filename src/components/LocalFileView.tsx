@@ -3,7 +3,7 @@ import { canFollowMarkdownLink, localMarkdownLink } from "../lib/local-files/mar
 import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { MoreToolsButton } from "./MoreToolsButton";
 import { useLocalFileDetails } from "../hooks/useLocalFileDetails";
-import { useDiskChange, useDiskChanges } from "../hooks/useDiskChange";
+import { useDiskChange } from "../hooks/useDiskChange";
 import type { NineRingsDiskChanges } from "./NineRingsDiskChanges";
 import { localFileInfoTimes } from "../lib/local-files/file-info-times";
 import { saveLocalSource } from "../lib/local-files/source-save";
@@ -80,9 +80,10 @@ function loadSymbolFolds(identity: string) {
   } catch { return new Set<string>(); }
 }
 
-export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEnabled = false, useCustomContextMenu = true, showStatusBlockNumber = true, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true, defaultCodeBlockWrap = true, cjkLatinSpacing = true }: {
+export function LocalFileView({ data, diskChanges, onDiskNoticeTarget, onClose, fontSize, vimModeEnabled = false, useCustomContextMenu = true, showStatusBlockNumber = true, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true, defaultCodeBlockWrap = true, cjkLatinSpacing = true }: {
   data: Readonly<LocalFileViewData>;
   diskChanges: NineRingsDiskChanges;
+  onDiskNoticeTarget: (node: HTMLDivElement | null) => void;
   onClose: () => void;
   fontSize: number;
   vimModeEnabled?: boolean;
@@ -125,8 +126,7 @@ export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEna
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [source, setSource] = useState("");
   const [baseSnapshot, setBaseSnapshot] = useState<LocalFileSnapshot | null>(null);
-  const pendingDiskChanges = useDiskChanges(diskChanges);
-  const externalSnapshot = pendingDiskChanges.find(item => item.id === identity)?.disk;
+  const diskNoticeSlot = active ? <div className="disk-change-slot" ref={onDiskNoticeTarget} /> : null;
   const [accessReadOnly, setReadOnly] = useState(() => isLocalFileReadOnly(data.rootId, data.nodeId));
   const operationLocked = useSyncExternalStore(subscribeLocalOperationLocks, () => isLocalOperationLocked(data.rootId, data.nodeId));
   const readOnly = accessReadOnly || operationLocked;
@@ -411,7 +411,8 @@ export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEna
     readCurrent: currentSource,
     saveCopy: () => { void saveCopy(); },
     canOverwrite: () => editing && !savingOperation.current && localFileService.canSaveOriginal(data.rootId),
-    overwrite: () => { void save(true); },
+    canDiscard: true,
+    overwrite: snapshot => { void save(snapshot); },
     apply(next, baseline) {
       if (next.source !== baseline.source) {
         const handle = sourceHandle.current;
@@ -551,14 +552,14 @@ export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEna
     handle.setSelectionRange(at, at); handle.scrollToOffset(at, true); setActiveOffset(at); handle.focus();
     recordHistory(at, at, true);
   };
-  const save = useCallback(async (overwriteExternal = false) => {
+  const save = useCallback(async (overwriteExternal?: LocalFileSnapshot) => {
     if (savingOperation.current) return false;
     if (isLocalFileReadOnly(data.rootId, data.nodeId)) {
       setError("此本地文件当前为只读。请先在文件树右键菜单中切换为可编辑。");
       return false;
     }
-    if (!editing && !overwriteExternal) return;
-    const base = overwriteExternal && externalSnapshot ? externalSnapshot : baseSnapshot;
+    if (!editing) return;
+    const base = overwriteExternal ?? baseSnapshot;
     if (!base) return;
     savingOperation.current = true;
     setSaveState("saving"); setError("");
@@ -568,7 +569,7 @@ export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEna
         submitted: savingSource, base,
         currentSource,
         write: (text, snapshot) => localFileService.write(data.rootId, data.nodeId, text, snapshot),
-        committed: saved => { latestDraft.current.base = saved; setBaseSnapshot(saved); diskChanges.clear(identity); },
+        committed: saved => { latestDraft.current.base = saved; setBaseSnapshot(saved); diskChanges.clear(identity); diskChanges.dismissSaveConflict(identity); },
         clearDraft: () => removeLocalDraft(identity),
         keepDraft: (text, saved) => writeLocalDraft({ identity, source: text, baseSource: saved.source, baseRevision: saved.revision, bom: saved.bom, lineEnding: saved.lineEnding, savedAt: Date.now() }),
       });
@@ -578,16 +579,16 @@ export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEna
       return result.clean && !result.recoveryIssue;
     } catch (reason) {
       const message = String(reason);
-      setSaveState("error"); setError(message.includes("STALE_REVISION") ? "磁盘文件已变化，请在下方比较后选择重载或覆盖。" : message);
+      setSaveState("error");
       if (message.includes("STALE_REVISION")) {
         const latest = await localFileService.readSnapshot(data.rootId, data.nodeId).catch(() => null);
-        if (latest) { diskChanges.record({ id: identity, name: data.name, path: diskPath, disk: latest, dirty: true }); setError(""); }
-      }
+        if (diskChanges.actions.has(identity)) diskChanges.reportSaveConflict({ id: identity, name: data.name, path: diskPath }, latest);
+      } else setError(message);
       return false;
     } finally {
       savingOperation.current = false;
     }
-  }, [baseSnapshot, currentSource, data.name, data.nodeId, data.rootId, diskChanges, diskPath, editing, externalSnapshot, identity]);
+  }, [baseSnapshot, currentSource, data.name, data.nodeId, data.rootId, diskChanges, diskPath, editing, identity]);
   useEffect(() => registerLocalFileSaver(identity, async () => {
     if (saveBusy.current) throw new Error("文件正在保存，请稍后重试");
     return (await save()) === true;
@@ -753,7 +754,7 @@ export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEna
   const propertiesPanel = propertiesOpen ? <LocalFilePropertiesPanel info={fileInfo} onClose={() => setPropertiesOpen(false)} /> : null;
   if (preview && isMarkdown && baseSnapshot && !loading) return <section ref={localViewRef} className="local-file-view" data-properties-open={propertiesOpen || undefined} aria-label="本地文件工作区">
     {fileNotices}
-    <LocalMarkdownWorkspace separateTitle key={`${identity}:${renderEpoch}`} identity={identity} source={source} title={data.name} active={active}
+    <LocalMarkdownWorkspace separateTitle afterTitle={diskNoticeSlot} key={`${identity}:${renderEpoch}`} identity={identity} source={source} title={data.name} active={active}
       readonly={readOnly} focusMode={focusMode} fontSize={fontSize} vimModeEnabled={vimModeEnabled} useCustomContextMenu={useCustomContextMenu} showStatusBlockNumber={showStatusBlockNumber} highlightActiveLine={highlightActiveLine}
       showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} defaultCodeBlockWrap={defaultCodeBlockWrap}
       cjkLatinSpacing={cjkLatinSpacing} readonlyHeadingFoldInFocusMode={readonlyHeadingFoldInFocusMode}
@@ -796,6 +797,7 @@ export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEna
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
       <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
     </DocumentTitleBar>
+    {diskNoticeSlot}
     {fileNotices}
     {!loading && !error && <>
       <div className="local-file-editor-shell" data-workspace-panel-start>{preview ? isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">暂时无法渲染，源码已保留，可切回源码模式。</p><pre>{source}</pre></div> : <DocumentSourceSurface editor={{

@@ -21,7 +21,8 @@ type Options = Pick<Parameters<typeof useLocalFileRevisionCheck>[0], "baseline" 
   onRead?(): void;
   saveCopy?(): void;
   canOverwrite?(): boolean;
-  overwrite?(): void;
+  overwrite?(disk: LocalFileSnapshot): void;
+  canDiscard?: boolean;
 };
 
 /** Offer a specific disk revision. Recheck both sides before replacing the buffer. */
@@ -38,11 +39,12 @@ export function useDiskChange(options: Options) {
   useLayoutEffect(() => {
     alive.current = true;
     const actions = {
+      canDiscard: options.canDiscard,
       readCurrent: () => latest.current.readCurrent(),
       load: async (revision: string, discard = false) => {
         const initial = latest.current;
         const base = initial.baseline();
-        if (!base || !initial.enabled || !initial.canCheck() || reading.current || (!discard && initial.dirty)) return false;
+        if (!base || !initial.enabled || !initial.canCheck() || reading.current || (discard ? !initial.canDiscard : initial.dirty)) return false;
         reading.current = true;
         const applicable = () => {
           const current = latest.current;
@@ -78,7 +80,10 @@ export function useDiskChange(options: Options) {
       ...(options.saveCopy ? { saveCopy: () => latest.current.saveCopy?.() } : {}),
       ...(options.overwrite ? {
         canOverwrite: () => latest.current.canOverwrite?.() ?? false,
-        overwrite: () => { if (latest.current.canOverwrite?.()) latest.current.overwrite?.(); },
+        overwrite: (disk: LocalFileSnapshot) => {
+          const known = store.snapshot().find(item => item.id === id);
+          if (known?.disk.revision === disk.revision && latest.current.canOverwrite?.()) latest.current.overwrite?.(disk);
+        },
       } : {}),
     };
     store.actions.set(id, actions);
@@ -86,6 +91,7 @@ export function useDiskChange(options: Options) {
       alive.current = false;
       if (store.actions.get(id) === actions) {
         store.actions.delete(id);
+        store.dismissSaveConflict(id);
         if (!retain) store.clear(id);
       }
     };

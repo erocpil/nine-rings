@@ -99,6 +99,8 @@ test("本地目录创建、保存汇总、移动和 Worker 全文搜索跳转", 
   await panel.getByRole("button", { name: "未保存文件与恢复草稿", exact: true }).click();
   await drafts.getByRole("button", { name: "全部保存", exact: true }).click();
   await expect(drafts.getByRole("status")).toContainText("保存未完成");
+  const conflict = page.getByRole("dialog", { name: "磁盘文件保存冲突" });
+  await conflict.getByRole("button", { name: "返回编辑", exact: true }).click();
   await expect(page.getByRole("button", { name: "比较磁盘版本", exact: true })).toBeVisible();
   await viewer.getByRole("button", { name: "返回原视图", exact: true }).click();
   await drafts.locator(".local-file-draft-row > button:first-child").click();

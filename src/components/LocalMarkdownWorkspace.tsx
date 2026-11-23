@@ -86,6 +86,7 @@ export function LocalMarkdownWorkspace({
   bindHeadingNavigation,
   onReadonlyChange,
   titleActions,
+  afterTitle,
   viewToggle,
   navigationControls,
   resolveResource,
@@ -140,6 +141,7 @@ export function LocalMarkdownWorkspace({
   bindHeadingNavigation?: (navigate: ((fragment: string) => boolean) | null) => void;
   onReadonlyChange?: (readonly: boolean) => void;
   titleActions: ReactNode;
+  afterTitle?: ReactNode;
   viewToggle: ReactNode;
   navigationControls?: ReactNode;
   resolveResource: (source: string) => Promise<string | null>;
@@ -374,6 +376,7 @@ export function LocalMarkdownWorkspace({
               embedImages: true,
               savedLabel: "已保存到磁盘；不参与数据库备份",
               titleActions,
+              afterTitle,
               separateTitle,
               bodyClassName: "markdown-reading-view",
               bodyLabel: "Markdown 渲染",
