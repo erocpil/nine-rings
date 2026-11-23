@@ -50,14 +50,16 @@ for (const native of [false, true]) {
     const toolSizes = () => tools.evaluateAll(buttons => buttons.map(button => {
       const rect = button.getBoundingClientRect(); return [Number(rect.width.toFixed(2)), Number(rect.height.toFixed(2))];
     }));
-    // The toolbar portal can briefly unmount while startup config settles.
-    // Capture the full controls, not an empty intermediate baseline.
-    await expect.poll(() => tools.count()).toBe(9);
-    const ordinaryToolSizes = await toolSizes();
+    // The toolbar portal can temporarily hide while startup config settles.
+    let ordinaryToolSizes: Awaited<ReturnType<typeof toolSizes>> = [];
+    await expect.poll(async () => {
+      ordinaryToolSizes = await toolSizes();
+      return ordinaryToolSizes.filter(([width, height]) => width > 0 && height > 0).length;
+    }).toBe(9);
     for (let i = 0; i < 2; i++) {
       await page.getByRole("button", { name: "专注模式", exact: true }).click();
       expect(await geometry()).toEqual(baseline);
-      expect(await toolSizes()).toEqual(ordinaryToolSizes);
+      await expect.poll(toolSizes).toEqual(ordinaryToolSizes);
       await expect(page.locator(".note-title-row")).toBeVisible();
       await expect(page.locator(".desktop-focus-toolbar")).toHaveCount(0);
       await revealDesktopActivityBar(page);

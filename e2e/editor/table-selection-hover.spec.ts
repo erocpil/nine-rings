@@ -135,6 +135,15 @@ for (const readonly of [false, true]) {
       Object.assign(element, { recordedCellSelections: kinds });
     });
     for (const [start, end] of [[left, right], [right, left]]) {
+      // Start each direction from a caret. A drag starting inside the previous
+      // whole-cell selection can be interpreted as dragging that selection.
+      await body.evaluate((element, start) => {
+        const { editor } = element as HTMLElement & { editor: import("@tiptap/core").Editor };
+        const point = editor.view.posAtCoords({ left: start.x, top: start.y });
+        if (!point) throw new Error("No caret position in the start cell");
+        editor.commands.setTextSelection(point.pos);
+      }, start);
+      await expect(selected).toHaveCount(0);
       await body.evaluate(element => { (element as Element & { recordedCellSelections: boolean[] }).recordedCellSelections.length = 0; });
       await page.mouse.move(start.x, start.y);
       await page.mouse.down();

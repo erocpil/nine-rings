@@ -10,7 +10,6 @@ async function fixture(page: Page, large = false) {
     const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts");
     setPluginsEnabled(true); saveLocalFilesEnabled(true); saveFileBrowserEnabled(true);
   });
-  await page.getByRole("button", { name: "本地文件", exact: true }).click();
   const roots = await page.evaluate(async largeDirectory => {
     const { localFileService } = await import("/src/lib/local-files/service.ts");
     const file = (path: string, text: string) => { const result = new File([text], path.split("/").pop()!, { lastModified: 5000 }); Object.defineProperty(result, "webkitRelativePath", { value: path }); return result; };
@@ -18,7 +17,10 @@ async function fixture(page: Page, large = false) {
     const right = localFileService.addFiles([file("Right/common.c", "int common = 0;\n"), file("Right/only.c", "int right = 0;\n")])!;
     return { left, right };
   }, large);
+  // The file tree hydrates its roots when it mounts. Seed the mocked service first.
+  await page.getByRole("button", { name: "本地文件", exact: true }).click();
   const panel = page.getByRole("region", { name: "本地文件树", exact: true });
+  await expect(panel.locator(`[data-local-file-id="${roots.left.id}:"]`)).toBeVisible();
   await panel.getByRole("button", { name: "双栏浏览", exact: true }).click();
   const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
   const left = browser.getByRole("region", { name: "左侧目录", exact: true }), right = browser.getByRole("region", { name: "右侧目录", exact: true });

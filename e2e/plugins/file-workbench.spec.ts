@@ -4709,6 +4709,9 @@ test("编辑标签等宽，提示区分文件名和目录，悬停和键盘聚�
   const overflows = (target: typeof tab) => target.locator(".workbench-editor-tab-name").evaluate(element => element.scrollWidth > element.clientWidth);
   await expect(tab).toHaveText(long);
   await expect(mediumTab).toHaveText(medium);
+  // Measure idle label space before the close button reserves its space.
+  await page.mouse.move(5, 250);
+  await expect(tabs.getByRole("button", { name: "关闭 alpha.c", exact: true })).toHaveCSS("opacity", "0");
   expect(await overflows(short)).toBe(false);
   const defaultWidth = (await tab.boundingBox())!.width;
   const dialog = page.getByRole("dialog", { name: "编辑器设置", exact: true });
