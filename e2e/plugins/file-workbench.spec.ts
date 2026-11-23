@@ -1373,6 +1373,39 @@ test("文件暂存架收集多个目录的引用，核验失效项后批量入�
   await expect.poll(() => page.evaluate(() => (window as any).__roadmapTransfers)).toEqual(["to/one.txt", "to/two.txt"]);
 });
 
+test("命名工作区重开后恢复多行目录、固定标签和分栏比例", async ({ page }) => {
+  await setupRoadmapFileBrowser(page, { "from/one.txt": "one", "to/two.txt": "two" });
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const leftTab = left.getByRole("tab", { name: "from", exact: true });
+  await leftTab.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "固定标签", exact: true }).click();
+  const changeRows = async (count: number) => {
+    await left.getByRole("button", { name: "纵向目录数", exact: true }).click();
+    await page.getByRole("menuitem", { name: `${count} 个目录`, exact: true }).click();
+  };
+  const separator = page.getByRole("separator", { name: "双栏宽度" });
+  await separator.press("ArrowRight");
+  await changeRows(2);
+  const dialog = page.getByRole("dialog", { name: "命名工作区", exact: true });
+  const show = () => page.getByRole("button", { name: "命名工作区", exact: true }).click();
+  await show();
+  await dialog.getByRole("textbox", { name: "工作区名称", exact: true }).fill("项目浏览");
+  await dialog.getByRole("button", { name: "保存当前布局", exact: true }).click();
+  await dialog.getByRole("button", { name: "关闭命名工作区", exact: true }).click();
+  await changeRows(1);
+  await separator.press("Home");
+  await expect(separator).toHaveAttribute("aria-valuenow", "50");
+  await page.reload();
+  await show();
+  await dialog.getByRole("button", { name: "载入 项目浏览", exact: true }).click();
+  await expect(page.getByRole("region", { name: "左侧目录 2", exact: true })).toBeVisible();
+  await expect(separator).toHaveAttribute("aria-valuenow", "55");
+  await expect(leftTab).toHaveAttribute("aria-description", "固定标签");
+  await show();
+  await dialog.getByRole("button", { name: "删除 项目浏览", exact: true }).click();
+  await expect(dialog).toContainText("暂无已保存的工作区");
+});
+
 test("命令面板查找操作和固定、最近目录，并复用写入门禁", async ({ page }) => {
   await page.goto("/file-workbench.html");
   await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);

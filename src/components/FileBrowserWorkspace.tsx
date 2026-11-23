@@ -4,6 +4,8 @@ import { BrowserDirectorySizeCache } from "../lib/local-files/browser-directory-
 import { FileBrowserShortcuts } from "./FileBrowserShortcuts";
 import { useBrowserShortcuts } from "../hooks/useBrowserShortcuts";
 import { browserShortcutAction, browserShortcutCommands, displayBrowserShortcut, saveBrowserShortcuts } from "../lib/local-files/browser-shortcuts";
+import { FileBrowserNamedWorkspaces } from "./FileBrowserNamedWorkspaces";
+import { restoreNamedBrowserWorkspace } from "../lib/local-files/browser-named-workspaces";
 import { FileBrowserShelf } from "./FileBrowserShelf";
 import { browserShelfId, type BrowserShelfEntry, type BrowserShelfTarget } from "../lib/local-files/browser-shelf";
 import { FileBrowserCommandPalette, type FileBrowserCommand } from "./FileBrowserCommandPalette";
@@ -41,6 +43,7 @@ export function FileBrowserWorkspace(props: Props) {
 function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile, onClose, toolbarExtras, commands = [], onToolContext }: Props) {
   const compact = workspace.presentation === "compact";
   const { shortcuts, mac } = useBrowserShortcuts(workspace.settings);
+  const [layoutsOpen, setLayoutsOpen] = useState(false);
   const [shelf, setShelf] = useState<BrowserShelfEntry[]>([]);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -105,7 +108,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
   const previewNavigation = useRef<[BrowserPreviewNavigation | null, BrowserPreviewNavigation | null]>([null, null]);
   const drag = useRef<{ token: string; source: BrowserDragSource } | null>(null);
   const provider = workspace.provider;
-  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); setPaletteOpen(false); setShelfOpen(false); setSizeScope(null); drag.current = null; } }, [active]);
+  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); setPaletteOpen(false); setShelfOpen(false); setLayoutsOpen(false); setSizeScope(null); drag.current = null; } }, [active]);
   useEffect(() => workspace.subscribeMutations(change => {
     sizeCache.current.invalidate(change.rootId);
     if (change.targetRootId) sizeCache.current.invalidate(change.targetRootId);
@@ -299,7 +302,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
         }
       });
     }
-    return [...list, ...commands, ...fixed, ...recent];
+    return [...list, { id: "layouts", label: "命名工作区", detail: "浏览窗口", run: () => setLayoutsOpen(true) }, ...commands, ...fixed, ...recent];
   };
   return <FileBrowserDragContext.Provider value={{
     current: () => active ? drag.current?.source ?? null : null,
@@ -359,6 +362,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       </div>
       <button type="button" aria-label="统计当前目录大小" title="统计当前目录大小（手动递归，包含隐藏项）" disabled={!currentLocation || queueBusy} onClick={() => currentLocation && setSizeScope({ rootId: currentLocation.rootId, node: currentLocation.node, name: roots.find(root => root.id === currentLocation.rootId)?.name ?? currentLocation.rootId })}><ToolbarIcon name="info" /></button>
       <button ref={shortcutsButton} type="button" aria-label="文件浏览快捷键" title="文件浏览快捷键" onClick={() => setShortcutsOpen(true)}><ToolbarIcon name="sliders" /></button>
+      {compact && <button type="button" aria-label="命名工作区" title="命名工作区" onClick={() => setLayoutsOpen(true)}><ToolbarIcon name="compare" /></button>}
       {compact && <button type="button" aria-label="文件暂存架" title={`文件暂存架（${shelf.length} 项）`} onClick={() => setShelfOpen(true)}><ToolbarIcon name="bookmark" /></button>}
       {compact && <button type="button" aria-label="命令面板" title={`命令面板（${displayBrowserShortcut("Mod+Shift+P", mac)}）`} onClick={() => setPaletteOpen(true)}><ToolbarIcon name="search" /></button>}
       {toolbarExtras && <div className="file-browser-action-group file-browser-host-tools" role="group" aria-label="工作台工具">{toolbarExtras}</div>}
@@ -403,6 +407,15 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       catch (reason) { setError(String(reason)); }
       event.currentTarget.value = "";
     }} />
+    {layoutsOpen && active && <FileBrowserNamedWorkspaces current={state} store={workspace.settings}
+      onLoad={async (layout, signal) => {
+        const allowed = await workspace.roots();
+        signal.throwIfAborted();
+        workspace.assertActive();
+        setRoots(allowed);
+        setQuickPreview(false); setSizeScope(null); setLayoutsOpen(false);
+        setState(restoreNamedBrowserWorkspace(layout, allowed.map(root => root.id)));
+      }} onClose={() => setLayoutsOpen(false)} />}
     {shelfOpen && active && <FileBrowserShelf entries={shelf} targets={[shelfTarget(0), shelfTarget(1)]} workspace={workspace}
       onRemove={id => setShelf(previous => previous.filter(entry => browserShelfId(entry) !== id))}
       onSubmit={submitTransferPlan} onClose={() => setShelfOpen(false)} />}
