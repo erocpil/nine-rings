@@ -10,14 +10,14 @@ Workbench 已有模板式批量重命名和逐项预览、可配置快捷键、�
 | --- | --- | --- | --- | --- |
 | 1 | 批量重命名规则和预设（已实现） | 高 | 中 | 支持纯文本或正则替换、大小写转换和编号补零。预设可保存、更新和删除。逐项预览变更及同名冲突，确认后进入现有队列。[Total Commander](https://www.ghisler.com/featurel.htm) · [QSpace](https://qspace.awehunt.com/en-us/index.html) |
 | 2 | 统一命令面板与快速跳转（已实现） | 高 | 中低 | 同一入口查找文件操作、固定目录、最近目录和自定义工具。结果显示快捷键、作用栏和禁用原因，执行时调用已有命令。[Marta](https://marta.sh/docs/core/actions/) · [ForkLift](https://www.binarynights.com/) |
-| 3 | 目录比较结果转为操作计划 | 高 | 中高 | 从比较结果勾选差异，生成左到右或右到左的复制计划。先展示待复制、冲突和未知项，经确认后入队。镜像删除和双向同步另行评估。[ForkLift](https://www.binarynights.com/) · [Krusader](https://krusader.org/) |
+| 3 | 目录比较结果转为操作计划（已实现） | 高 | 中高 | 从比较结果勾选差异，生成左到右或右到左的复制计划。先展示待复制、冲突和未知项，经确认后入队。镜像删除和双向同步另行评估。[ForkLift](https://www.binarynights.com/) · [Krusader](https://krusader.org/) |
 | 4 | 双文件差异查看 | 中高 | 中 | 从目录比较打开左右文本的只读逐行差异，并可跳到对应行。同一查看方式也可用于核对编辑器的外部修改冲突。[Krusader](https://krusader.org/) · [Beyond Compare](https://www.scootersoftware.com/v5help/) |
 | 5 | 跨目录文件暂存架 | 中高 | 中 | 从多个目录收集文件引用，选定目标后统一复制或移动。入队前复核路径和授权，并标明失效条目及原因。[QSpace](https://qspace.awehunt.com/en-us/index.html) · [Path Finder](https://cocoatech.io/) |
 | 6 | 命名工作区与布局恢复 | 中 | 中 | 将现有双栏、多目录区及标签保存为可切换的命名工作区，复用布局持久化和授权恢复逻辑。[QSpace](https://qspace.awehunt.com/en-us/index.html) · [Directory Opus](https://docs.dopus.com/doku.php?id=basic_concepts:the_lister) |
 | 7 | 压缩包作为只读目录 | 中 | 中高 | 先支持 ZIP 内浏览、预览及选中条目解压。包内编辑涉及整包写回与外部修改核验，留待后续。[Double Commander](https://doublecmd.github.io/doc/en/about.html) · [Commander One](https://commander-one.com/) |
 | 8 | 远程文件位置 | 取决于用户需求 | 高 | 有明确需求时先评估 SFTP 浏览、下载和上传。远程就地编辑、同步及云存储需要另行设计凭据、断线处理与修订核验。[ForkLift](https://www.binarynights.com/) |
 
-工具栏或 Command／Ctrl+Shift+P 可打开命令面板。文件命令复用当前目录栏和键盘命令的门禁，自定义工具进入执行确认，固定及最近目录来自已有标签历史。接下来从比较结果交付可核对的单向复制计划。
+工具栏或 Command／Ctrl+Shift+P 可打开命令面板。文件命令复用当前目录栏和键盘命令的门禁，自定义工具进入执行确认，固定及最近目录来自已有标签历史。比较结果可勾选并按指定方向预览复制计划。当前只计划普通文件且目标父目录须存在；同名差异交给队列按既有冲突流程处理。
 
 ### 批量重命名
 

@@ -1280,6 +1280,59 @@ test("目录标签可从右栏移动到左栏，并沿用原浏览历史", async
   await expect(left.getByRole("option", { name: /^alpha.c/ })).toBeVisible();
 });
 
+async function setupRoadmapFileBrowser(page: Page, entries: Record<string, string | null>) {
+  await page.addInitScript(entries => {
+    const key = "file-workbench:nr:local-file-browser";
+    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({
+      version: 2, active: 0, ratio: .5,
+      groups: ["from", "to"].map(node => ({ active: 0, tabs: [{ tabId: node, index: 0, history: [{ rootId: "root", node, selected: [], scrollTop: 0 }] }] })),
+    }));
+    const tree = { from: null, to: null, ...entries } as Record<string, string | null>;
+    const transferred: string[] = [];
+    Object.assign(window, { __roadmapFiles: tree, __roadmapTransfers: transferred });
+    let sequence = 1;
+    (window as any).__TAURI_INTERNALS__ = { transformCallback() { return sequence++; }, unregisterCallback() {}, async invoke(command: string, args: any = {}) {
+      if (command === "plugin:event|listen") return sequence++;
+      if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+      if (command === "workbench_window_role") return "browser";
+      if (command === "workbench_editor_presence") return { present: false, revision: 0 };
+      if (command === "local_files_roots") return [{ id: "root", name: "Root" }];
+      if (command === "local_files_display_path") return ["/fixture", args.node].filter(Boolean).join("/");
+      if (command === "local_files_list") return { nodes: Object.entries(tree).filter(([id]) => id.split("/").slice(0, -1).join("/") === args.node).map(([id, source]) => ({ id, name: id.split("/").pop(), directory: source === null, size: source?.length ?? 0 })), next: null };
+      if (command === "local_files_stat" || command === "local_files_read") {
+        if (!(args.node in tree)) throw new Error("NOT_FOUND");
+        const source = tree[args.node] ?? "";
+        return { source, revision: source, size: source.length, modifiedMs: 10, lineEnding: "lf", bom: false };
+      }
+      if (command === "local_files_transfer") {
+        const result = [args.parent, args.name].filter(Boolean).join("/");
+        if (result in tree) throw new Error("TARGET_EXISTS");
+        if (!(args.node in tree)) throw new Error("NOT_FOUND");
+        tree[result] = tree[args.node]; transferred.push(result);
+        if (args.moving) delete tree[args.node];
+        return { node: result };
+      }
+      throw new Error("Unexpected command: " + command);
+    } };
+  }, entries);
+  await page.goto("/file-workbench.html");
+}
+
+test("目录比较复制计划经确认后只入队已选的可复制差异", async ({ page }) => {
+  await setupRoadmapFileBrowser(page, { "from/one.txt": "copy me", "to/unknown.txt": "other side", "from/both.txt": "one", "to/both.txt": "two" });
+  await page.getByRole("button", { name: "比较目录", exact: true }).click();
+  const comparison = page.getByRole("dialog", { name: "目录比较", exact: true });
+  await expect(comparison.getByRole("status")).toContainText("完成");
+  for (const name of ["one.txt", "unknown.txt", "both.txt"]) await comparison.getByRole("checkbox", { name: `选中差异 ${name}` }).check();
+  await comparison.getByRole("button", { name: "预览复制计划" }).click();
+  const review = comparison.getByRole("region", { name: "复制计划" });
+  await expect(review).toContainText("计划复制 1 项");
+  await expect(review).toContainText("未知");
+  expect(await page.evaluate(() => (window as any).__roadmapTransfers)).toEqual([]);
+  await review.getByRole("button", { name: "确认加入队列" }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__roadmapTransfers)).toEqual(["to/one.txt"]);
+});
+
 test("命令面板查找操作和固定、最近目录，并复用写入门禁", async ({ page }) => {
   await page.goto("/file-workbench.html");
   await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);

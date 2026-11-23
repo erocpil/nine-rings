@@ -314,3 +314,7 @@
 .file-browser-command-results > button[aria-disabled="true"] { opacity: .68; cursor: default; }
 .file-browser-command-results small { grid-column: 1 / -1; color: var(--text-secondary); overflow-wrap: anywhere; }
 .file-browser-command-results span { overflow-wrap: anywhere; }
+
+.file-browser-plan-items { display: grid; gap: 6px; max-height: 45dvh; overflow: auto; padding: 0 6px; list-style: none; }
+.file-browser-plan-items li { display: grid; gap: 2px; overflow-wrap: anywhere; border-bottom: 1px solid var(--border); padding: 4px 0; }
+.file-browser-plan-items li > span { color: var(--text-secondary); }

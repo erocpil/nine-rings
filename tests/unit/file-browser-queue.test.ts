@@ -108,6 +108,19 @@ it("freezes confirmed inputs and executes jobs serially with stable snapshots", 
   expect(browserQueueReport(queue.getSnapshot())).toContain("Left/src");
   expect(browserQueueReport(queue.getSnapshot())).toContain("Right/dest");
 });
+
+it("rejects a transfer plan that will not fit before publishing any task", () => {
+  const queue = create();
+  const tasks = Array.from({ length: 21 }, (_, index) => ({
+    operation: operation([`src/${index}.c`]),
+    name: "",
+  }));
+  const listener = vi.fn();
+  queue.subscribe(listener);
+  expect(() => queue.enqueueBatch(tasks)).toThrow("操作队列容量不足");
+  expect(queue.getSnapshot()).toEqual([]);
+  expect(listener).not.toHaveBeenCalled();
+});
 it("stops at item boundaries and retries only unfinished items", async () => {
   const queue = create();
   let finish!: () => void;

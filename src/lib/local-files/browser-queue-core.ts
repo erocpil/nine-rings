@@ -49,23 +49,30 @@ export class BrowserOperationQueueCore {
   }
   private update(id: number, patch: Partial<BrowserJob>) { this.publish(this.jobs.map(job => job.id === id ? Object.freeze({ ...job, ...patch }) : job)); }
   enqueue(operation: BrowserOperation, name: string) {
+    return this.enqueueBatch([{ operation, name }])[0];
+  }
+  enqueueBatch(requests: readonly { operation: BrowserOperation; name: string }[]) {
     if (this.disposed) throw new Error("操作队列已关闭");
     this.host.assertActive();
-    const count = operation.nodes.length || 1;
-    if (count > 2000) throw new Error("单个任务最多 2000 项");
+    if (!requests.length) return [];
+    const counts = requests.map(({ operation }) => operation.nodes.length || 1);
+    if (counts.some(count => count > 2000)) throw new Error("单个任务最多 2000 项");
+    const added = counts.reduce((sum, count) => sum + count, 0);
     const jobs = [...this.jobs];
-    while (jobs.length >= 20 || jobs.reduce((sum, job) => sum + job.items.length, count) > 4000) {
+    while (jobs.length + requests.length > 20 || jobs.reduce((sum, job) => sum + job.items.length, added) > 4000) {
       const at = jobs.findIndex(browserJobSettled);
-      if (at < 0) throw new Error("操作队列已满，请等待或停止部分任务后重试");
+      if (at < 0) throw new Error(requests.length === 1 ? "操作队列已满，请等待或停止部分任务后重试" : "操作队列容量不足，请缩小计划或等待现有任务完成");
       jobs.splice(at, 1);
     }
-    const nodes = [...operation.nodes]; Object.freeze(nodes);
-    const snapshot: BrowserOperation = Object.freeze({ ...operation, nodes, ...(operation.names ? { names: Object.freeze({ ...operation.names }) } : {}) });
-    const items = (snapshot.nodes.length ? snapshot.nodes : [""]).map(node => Object.freeze({ node, targetName: snapshot.names?.[node] ?? (["file", "directory", "rename"].includes(snapshot.kind) ? name.trim() : node.split("/").pop()!), status: "pending" as const }));
-    const job: BrowserJob = Object.freeze({ id: ++this.sequence, operation: snapshot, name, status: "queued", progress: { completed: 0, skipped: 0, total: count, current: "" }, items: Object.freeze(items), queuedAt: Date.now() });
-    this.publish([...jobs, job]);
+    const queued = requests.map(({ operation, name }, index): BrowserJob => {
+      const nodes = [...operation.nodes]; Object.freeze(nodes);
+      const snapshot: BrowserOperation = Object.freeze({ ...operation, nodes, ...(operation.names ? { names: Object.freeze({ ...operation.names }) } : {}) });
+      const items = (snapshot.nodes.length ? snapshot.nodes : [""]).map(node => Object.freeze({ node, targetName: snapshot.names?.[node] ?? (["file", "directory", "rename"].includes(snapshot.kind) ? name.trim() : node.split("/").pop()!), status: "pending" as const }));
+      return Object.freeze({ id: ++this.sequence, operation: snapshot, name, status: "queued", progress: { completed: 0, skipped: 0, total: counts[index], current: "" }, items: Object.freeze(items), queuedAt: Date.now() });
+    });
+    this.publish([...jobs, ...queued]);
     void this.drain();
-    return job.id;
+    return queued.map(job => job.id);
   }
   retry(id: number) {
     const job = this.jobs.find(value => value.id === id);
