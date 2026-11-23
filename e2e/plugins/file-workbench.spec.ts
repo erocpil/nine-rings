@@ -4697,17 +4697,27 @@ test("退出保留磁盘标签及顺序，主动关闭才移除，并恢复状�
 
 test("编辑标签等宽，提示区分文件名和目录，悬停和键盘聚焦显示关闭", async ({ page, browserName }, testInfo) => {
   const long = "甲乙丙丁戊己庚辛壬癸.c";
+  const medium = "bless-gen.c";
   await page.setViewportSize({ width: 720, height: 620 });
-  await setupIndependentEditor(page, { "alpha.c": "int alpha;", [long]: "int beta;" });
+  await setupIndependentEditor(page, { "alpha.c": "int alpha;", [medium]: "int beta;", [long]: "int gamma;" });
   const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
   const short = tabs.getByRole("tab", { name: "alpha.c", exact: true });
+  const mediumTab = tabs.getByRole("tab", { name: medium, exact: true });
   const tab = tabs.getByRole("tab", { name: long, exact: true });
   const close = tabs.getByRole("button", { name: `关闭 ${long}`, exact: true });
-  await expect(tab).toHaveText("甲乙丙丁戊己庚辛…");
+  const label = tab.locator(".workbench-editor-tab-name");
+  const overflows = (target: typeof tab) => target.locator(".workbench-editor-tab-name").evaluate(element => element.scrollWidth > element.clientWidth);
+  await expect(tab).toHaveText(long);
+  await expect(mediumTab).toHaveText(medium);
+  expect(await overflows(short)).toBe(false);
+  expect(await overflows(mediumTab)).toBe(false);
+  expect(await overflows(tab)).toBe(true);
+  const idleLabelWidth = (await label.boundingBox())!.width;
   await expect(tab).not.toHaveAttribute("title");
   await expect(close).toHaveCSS("opacity", "0");
   const before = (await tab.boundingBox())!.width;
   expect((await short.boundingBox())!.width).toBe(before);
+  expect((await mediumTab.boundingBox())!.width).toBe(before);
   await tab.hover();
   const tooltip = page.getByRole("tooltip");
   await expect(tooltip.locator("strong")).toHaveText(long);
@@ -4720,12 +4730,14 @@ test("编辑标签等宽，提示区分文件名和目录，悬停和键盘聚�
   expect((await tooltip.locator("span").boundingBox())!.y).toBeGreaterThan((await tooltip.locator("strong").boundingBox())!.y);
   await expect(close).toHaveCSS("opacity", "1");
   expect((await tab.boundingBox())!.width).toBe(before);
-  const label = (await tab.locator(".workbench-editor-tab-name").boundingBox())!;
-  expect(label.x + label.width).toBeLessThanOrEqual((await close.boundingBox())!.x);
+  const hoverLabel = (await label.boundingBox())!;
+  expect(hoverLabel.width).toBeLessThan(idleLabelWidth);
+  expect(hoverLabel.x + hoverLabel.width).toBeLessThanOrEqual((await close.boundingBox())!.x);
   await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
   await page.mouse.move(5, 250);
   await expect(close).toHaveCSS("opacity", "0");
+  expect((await label.boundingBox())!.width).toBe(idleLabelWidth);
   for (const palette of ["light", "dark", "calm", "mono-aware"]) {
     await page.evaluate(palette => {
       localStorage.setItem("file-workbench:palette", palette);

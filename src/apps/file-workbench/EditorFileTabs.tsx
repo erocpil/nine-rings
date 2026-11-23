@@ -5,14 +5,6 @@ import { ToolbarIcon } from "../../components/ToolbarIcon";
 import { copyToClipboard } from "../../lib/clipboard";
 import type { WorkbenchEditorSession } from "./editor-window";
 
-const Segmenter = (Intl as unknown as { Segmenter?: new (locale: undefined, options: { granularity: "grapheme" }) => { segment: (text: string) => Iterable<{ segment: string }> } }).Segmenter;
-const graphemes = Segmenter ? new Segmenter(undefined, { granularity: "grapheme" }) : undefined;
-
-function shortName(name: string) {
-  const characters = graphemes ? Array.from(graphemes.segment(name), part => part.segment) : Array.from(name);
-  return characters.length <= 8 ? name : `${characters.slice(0, 8).join("")}…`;
-}
-
 function filePath({ id, file }: WorkbenchEditorSession) {
   return file.bufferId ? file.bufferPath : id;
 }
@@ -140,7 +132,7 @@ export function EditorFileTabs({ files, current, dirty, changed, select, close, 
               if (neighbor) reorder(file.id, neighbor.id, after);
             }}
             onContextMenu={event => { event.preventDefault(); setMenu({ id: file.id, x: event.clientX, y: event.clientY, title: file.file.node.name, trigger: event.currentTarget }); }}>
-            {dirty[file.id] && <span aria-hidden="true">●</span>}{hasDiskChange && <span className="disk-change-badge" aria-hidden="true">↻</span>}<span className="workbench-editor-tab-name">{shortName(file.file.node.name)}</span>
+            {dirty[file.id] && <span aria-hidden="true">●</span>}{hasDiskChange && <span className="disk-change-badge" aria-hidden="true">↻</span>}<span className="workbench-editor-tab-name">{file.file.node.name}</span>
           </button>
           <button type="button" className="btn-icon" aria-label={`关闭 ${file.file.node.name}`} onClick={() => close(file.id)}><ToolbarIcon name="close" /></button>
         </div>;
