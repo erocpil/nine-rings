@@ -142,7 +142,7 @@ test("工具栏配置分组图标与 Unicode 持久化，目录区可叠放并�
   await expect(page.getByRole("button", { name: "自定义编辑器", exact: true })).toContainText("🛠");
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.getByRole("button", { name: "添加工具", exact: true }).click();
-  await expect.poll(() => page.locator(".workspace-dialog-backdrop").evaluate(element => { const style = getComputedStyle(element); return style.getPropertyValue("backdrop-filter") || style.getPropertyValue("-webkit-backdrop-filter"); })).toBe("blur(1px)");
+  await expect.poll(() => settingsBackdropFilter(page.locator(".settings-preview-backdrop"))).toBe("blur(2px)");
   await tools.getByRole("button", { name: "自定义编辑器", exact: true }).click();
   await tools.getByRole("combobox", { name: "图标来源", exact: true }).selectOption("image");
   await tools.getByLabel("导入工具图标", { exact: true }).setInputFiles({ name: "icon.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5ioAAAAASUVORK5CYII=", "base64") });
