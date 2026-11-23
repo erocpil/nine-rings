@@ -2974,6 +2974,7 @@ test("独立编辑器磁盘变更仅提示当前标签，稍后处理时锁定�
   for (const tab of [beta, gamma]) {
     await expect(tab).toHaveAccessibleDescription("磁盘版本有变更", { timeout: 12_000 });
     await expect(tab.locator("..")).toHaveCSS("background-color", "rgb(245, 216, 159)");
+    expect((await tab.boundingBox())!.width).toBe((await alpha.boundingBox())!.width);
   }
   await expect(prompt).toHaveCount(0);
   await expect(page.getByRole("region", { name: "磁盘文件变更", exact: true })).toHaveCount(0);
@@ -4633,23 +4634,27 @@ test("退出保留磁盘标签及顺序，主动关闭才移除，并恢复状�
   await page.reload(); await expect(tabs.getByRole("tab")).toHaveText(["alpha.c"]);
 });
 
-test("编辑标签精简长名称，悬停和键盘聚焦显示关闭且宽度不变", async ({ page, browserName }) => {
+test("编辑标签等宽，长名称截断，悬停和键盘聚焦显示关闭", async ({ page, browserName }) => {
   const long = "甲乙丙丁戊己庚辛壬癸.c";
   await page.setViewportSize({ width: 720, height: 620 });
   await setupIndependentEditor(page, { "alpha.c": "int alpha;", [long]: "int beta;" });
   const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
+  const short = tabs.getByRole("tab", { name: "alpha.c", exact: true });
   const tab = tabs.getByRole("tab", { name: long, exact: true });
   const close = tabs.getByRole("button", { name: `关闭 ${long}`, exact: true });
   await expect(tab).toHaveText("甲乙丙丁戊己庚辛…");
-  await expect(tab).toHaveAttribute("title", `${long}\n/root/${long}`);
+  await expect(tab).toHaveAttribute("title", `${long}\n/root`);
   await expect(close).toHaveCSS("opacity", "0");
   const before = (await tab.boundingBox())!.width;
+  expect((await short.boundingBox())!.width).toBe(before);
   await tab.hover();
   const tooltip = page.getByRole("tooltip");
-  await expect(tooltip).toHaveText(`${long}\n/root/${long}`);
-  expect(await tooltip.textContent()).toBe(`${long}\n/root/${long}`);
+  await expect(tooltip).toHaveText(`${long}\n/root`);
+  expect(await tooltip.textContent()).toBe(`${long}\n/root`);
   await expect(close).toHaveCSS("opacity", "1");
   expect((await tab.boundingBox())!.width).toBe(before);
+  const label = (await tab.locator(".workbench-editor-tab-name").boundingBox())!;
+  expect(label.x + label.width).toBeLessThanOrEqual((await close.boundingBox())!.x);
   await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
   await page.mouse.move(5, 250);
@@ -4659,6 +4664,7 @@ test("编辑标签精简长名称，悬停和键盘聚焦显示关闭且宽度�
     window.dispatchEvent(new Event("file-workbench:palette"));
   });
   await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "dark");
+  expect((await tab.boundingBox())!.width).toBe((await short.boundingBox())!.width);
   await tab.focus();
   // Safari on macOS uses Option-Tab to reach all controls with its default keyboard preferences.
   await page.keyboard.press(browserName === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
@@ -4689,6 +4695,8 @@ test("编辑标签拖拽和菜单排序会持久保存，关闭其它标签保�
   await page.mouse.up();
   await expect(tabs.getByRole("tab")).toHaveText(["gamma.c", "alpha.c", "beta.c"]);
   await expect(tab("alpha.c")).toHaveAttribute("aria-selected", "true");
+  await command("beta.c", "复制路径");
+  await expect.poll(() => page.evaluate(() => (window as any).__tabClipboard)).toBe("/root");
   await command("beta.c", "复制完整路径");
   await expect.poll(() => page.evaluate(() => (window as any).__tabClipboard)).toBe("/root/beta.c");
   await command("gamma.c", "在文件浏览中显示");

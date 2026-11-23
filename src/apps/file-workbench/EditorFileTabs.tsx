@@ -17,6 +17,18 @@ function filePath({ id, file }: WorkbenchEditorSession) {
   return file.bufferId ? file.bufferPath : id;
 }
 
+function containingDirectory(path?: string | null) {
+  if (!path) return undefined;
+  const windows = /^(?:[A-Za-z]:[\\/]|\\\\)/.test(path);
+  const slash = path.lastIndexOf("/");
+  const separator = windows ? Math.max(slash, path.lastIndexOf("\\")) : slash;
+  if (separator < 0) return undefined;
+  const directory = path.slice(0, separator);
+  return !directory || (windows && /(?:^|\\)[A-Za-z]:$/.test(directory))
+    ? path.slice(0, separator + 1)
+    : directory;
+}
+
 type Drop = { anchor: string; after: boolean };
 type Drag = { id: string; pointerId: number; startX: number; startY: number; x: number; y: number; moved: boolean; drop?: Drop };
 
@@ -76,6 +88,7 @@ export function EditorFileTabs({ files, current, dirty, changed, select, close, 
   const menuIndex = files.findIndex(file => file.id === menu?.id);
   const menuFile = files[menuIndex];
   const path = menuFile && filePath(menuFile);
+  const directory = containingDirectory(path);
   const copy = (text: string) => { void copyToClipboard(text, { reportFailure: true }).catch(report); };
   return <>
     <div className="workbench-editor-tabs" ref={root} role="tablist" aria-label="编辑文件标签" onWheel={event => {
@@ -95,7 +108,7 @@ export function EditorFileTabs({ files, current, dirty, changed, select, close, 
           <button role="tab" type="button" aria-selected={file.id === current} tabIndex={file.id === current ? 0 : -1}
             aria-description={hasDiskChange ? "磁盘版本有变更" : undefined}
             aria-label={`${dirty[file.id] ? "未保存 " : ""}${file.file.node.name}`}
-            title={`${file.file.node.name}\n${filePath(file) ?? "尚未保存到磁盘"}`} data-tooltip-align="start" data-tooltip-wide="true"
+            title={`${file.file.node.name}\n${containingDirectory(filePath(file)) ?? "尚未保存到磁盘"}`} data-tooltip-align="start" data-tooltip-wide="true"
             onPointerDown={event => {
               if (event.button !== 0 || event.pointerType === "touch") return;
               clearTimeout(clickTimer.current);
@@ -135,6 +148,7 @@ export function EditorFileTabs({ files, current, dirty, changed, select, close, 
     {menu && menuFile && <NotesContextMenu label="编辑文件标签菜单" target={menu} close={() => setMenu(null)} actions={[
       { label: "在文件浏览中显示", disabled: !path, run: () => reveal(menuFile.id) },
       { label: "复制文件名", run: () => copy(menuFile.file.node.name) },
+      { label: "复制路径", disabled: !directory, run: () => { if (directory) copy(directory); } },
       { label: "复制完整路径", disabled: !path, run: () => { if (path) copy(path); } },
       { label: "向左移动标签", separator: true, disabled: menuIndex === 0, run: () => reorder(menuFile.id, files[menuIndex - 1].id, false) },
       { label: "向右移动标签", disabled: menuIndex === files.length - 1, run: () => reorder(menuFile.id, files[menuIndex + 1].id, true) },
