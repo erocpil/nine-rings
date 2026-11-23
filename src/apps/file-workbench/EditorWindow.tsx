@@ -1,3 +1,6 @@
+import { DiskChangeNotice } from "../../components/DiskChangeNotice";
+import { useDiskChanges } from "../../hooks/useDiskChange";
+import { DiskChanges } from "../../lib/local-files/disk-changes";
 import { LinkHistory, type LinkDestination, type LinkRequest, type LinkViewPosition } from "./link-navigation";
 import type { LocalMarkdownLink } from "../../lib/local-files/markdown-links";
 import { EditorFileTabs } from "./EditorFileTabs";
@@ -18,6 +21,8 @@ const SourceView = lazy(() => import("./SourceView").then(module => ({ default: 
 
 export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host: ReturnType<typeof createWorkbenchHost>; port?: WorkbenchEditorPort }) {
   useEdgeScrollbars();
+  const [diskChanges] = useState(() => new DiskChanges());
+  const pendingDiskChanges = useDiskChanges(diskChanges);
   const [discard, setDiscard] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const [fileMenu, setFileMenu] = useState<NotesMenuTarget | null>(null);
@@ -207,14 +212,15 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   return <main className="file-workbench-app workbench-editor-window">
     {quitHint && <div className="workbench-quit-overlay"><div className="workbench-quit-card" role="status"><kbd>⌘Q</kbd><strong>{quitHint}</strong><span>继续使用则无需操作</span></div></div>}
     {error && <WorkspaceDialog title="编辑器操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
-    <EditorFileTabs files={state.files} current={current} dirty={dirty} select={select} close={id => closeTabs([id])} closeMany={closeTabs} discard={setDiscard} reorder={reorderTab} reveal={id => { void port.showBrowser(id).catch(report); }} report={report} />
+    <EditorFileTabs files={state.files} current={current} dirty={dirty} changed={pendingDiskChanges} select={select} close={id => closeTabs([id])} closeMany={closeTabs} discard={setDiscard} reorder={reorderTab} reveal={id => { void port.showBrowser(id).catch(report); }} report={report} />
+    <DiskChangeNotice store={diskChanges} active={!state.closing} />
     <div ref={container} className="file-workbench-content workbench-editor-sessions" />
     {state.files.map(item => {
       let closeRequest = closeRefs.current.get(item.id);
       if (!closeRequest) { closeRequest = { current: null }; closeRefs.current.set(item.id, closeRequest); }
       const View = item.file.bufferId ? BufferView : SourceView;
       return <ParkedDocument key={editorSessionKey(item)} active={current === item.id} host={container}>
-        <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><View bufferId={item.file.bufferId!} onCreateDocument={createDocument} beforeCloseActions={<><button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(item.file.bufferId ? undefined : current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button></>} headerActions={<><button type="button" className="btn-icon" aria-label="切换编辑文件" title={`切换编辑文件（${state.files.length}）`} aria-haspopup="menu" aria-expanded={Boolean(fileMenu)} onClick={event => {
+        <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><View diskChanges={diskChanges} diskChangeId={item.id} bufferId={item.file.bufferId!} onCreateDocument={createDocument} beforeCloseActions={<><button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(item.file.bufferId ? undefined : current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button></>} headerActions={<><button type="button" className="btn-icon" aria-label="切换编辑文件" title={`切换编辑文件（${state.files.length}）`} aria-haspopup="menu" aria-expanded={Boolean(fileMenu)} onClick={event => {
           if (fileMenu) { setFileMenu(null); return; }
           const trigger = event.currentTarget, rect = trigger.getBoundingClientRect();
           setFileMenu({ id: "workbench-editor-files", title: "切换编辑文件", x: rect.left, y: rect.bottom, trigger });

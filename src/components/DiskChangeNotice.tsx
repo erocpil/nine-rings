@@ -1,0 +1,117 @@
+import { useEffect, useRef, useState } from "react";
+import type { DiskChange, DiskChanges } from "../lib/local-files/disk-changes";
+import { useDiskChanges } from "../hooks/useDiskChange";
+import { useTransientMessage } from "../hooks/useTransientMessage";
+import { TextDiffView } from "./TextDiffView";
+import { WorkspaceDialog } from "./WorkspaceDialog";
+import "../styles/disk-changes.css";
+
+export function DiskChangeNotice({ store, active = true }: { store: DiskChanges; active?: boolean }) {
+  const changes = useDiskChanges(store);
+  const [list, setList] = useState(false);
+  const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
+  const [comparison, setComparison] = useState<{ id: string; revision: string; source: string }>();
+  const [working, setWorking] = useState(false);
+  const [message, setMessage] = useState("");
+  const { message: toast, showMessage: showToast, clearMessage: clearToast } = useTransientMessage();
+  const compareRequest = useRef(0);
+  const trigger = useRef<HTMLElement | null>(null);
+  useEffect(() => () => { compareRequest.current++; }, []);
+
+  const close = () => {
+    compareRequest.current++;
+    if (comparison) setComparison(undefined);
+    else setList(false);
+    setMessage("");
+  };
+  const compare = async (item: DiskChange) => {
+    const actions = store.actions.get(item.id);
+    if (!actions) return;
+    const request = ++compareRequest.current;
+    try {
+      const source = await actions.readCurrent();
+      if (request !== compareRequest.current || store.actions.get(item.id) !== actions) return;
+      setComparison({ id: item.id, revision: item.disk.revision, source });
+      setMessage("");
+    } catch (cause) {
+      if (request === compareRequest.current) setMessage(`暂时无法比较当前内容：${String(cause)}`);
+    }
+  };
+  const load = async (items: DiskChange[], discard = false) => {
+    setWorking(true);
+    setMessage("");
+    let loaded = 0;
+    for (const item of items) {
+      const latest = store.snapshot().find(change => change.id === item.id);
+      if (!latest || latest.disk.revision !== item.disk.revision || (!discard && latest.dirty)) continue;
+      if (await store.actions.get(item.id)?.load(item.disk.revision, discard)) loaded++;
+    }
+    if (loaded) {
+      setComparison(undefined);
+      showToast(loaded === 1 ? "磁盘文件已重新载入。" : `已重新载入 ${loaded} 个磁盘文件。`);
+    }
+    if (loaded < items.length) setMessage(`${items.length - loaded} 个文件未载入，请检查当前编辑和最新磁盘版本。`);
+    if (loaded === items.length && !store.snapshot().length) setList(false);
+    setWorking(false);
+  };
+  if (!active) return null;
+  const single = changes.length === 1 ? changes[0] : undefined;
+  const expanded = changes.some(item => !item.later);
+  const selected = changes.filter(item => !item.dirty && !excluded.has(item.id));
+  const compared = comparison && changes.find(item => item.id === comparison.id);
+  const unresolvedComparison = compared && compared.disk.revision !== comparison.revision;
+  const openList = () => { setExcluded(new Set()); setList(true); setMessage(""); };
+  const feedback = toast && <div className={list || comparison ? "disk-change-toast is-inline" : "disk-change-toast"}>
+    <span role="status">{toast}</span>
+    <button type="button" aria-label="关闭重新载入提示" onClick={clearToast}>×</button>
+  </div>;
+  return <>
+    {!!changes.length && <section className="disk-change-notice" aria-label="磁盘文件变更">
+      {expanded ? <>
+        <span role="status">{single ? single.dirty ? "磁盘文件已被外部修改。当前编辑已保留。" : `${single.name} 的磁盘版本已变化。` : `${changes.length} 个打开的文件有磁盘变更。`}</span>
+        {single && <>{!single.dirty && <button type="button" disabled={working} onClick={() => void load([single])}>载入磁盘版本</button>}
+          <button type="button" disabled={working} onClick={event => { trigger.current = event.currentTarget; void compare(single); }}>比较磁盘版本</button></>}
+        <button type="button" onClick={event => { trigger.current = event.currentTarget; openList(); }}>查看变更（{changes.length}）</button>
+        <button type="button" onClick={() => { store.defer(); close(); }}>稍后</button>
+      </> : <button type="button" onClick={event => { trigger.current = event.currentTarget; openList(); }}>磁盘变更（{changes.length}）</button>}
+      {!list && !comparison && message && <span role="status">{message}</span>}
+    </section>}
+    {comparison ? <WorkspaceDialog key="comparison" title="磁盘版本比较" onClose={close} restoreFocusRef={trigger}>
+      {compared && !unresolvedComparison ? <>
+        <p>{compared.name}{compared.dirty && " · 当前编辑和磁盘版本均已保留。"}</p>
+        <TextDiffView left={comparison.source} right={compared.disk.source} leftLabel="当前内容" rightLabel="磁盘版本" />
+        <div className="disk-change-controls">
+          {!compared.dirty && <button type="button" disabled={working} onClick={() => void load([compared])}>载入磁盘版本</button>}
+          {compared.dirty && store.actions.get(compared.id)?.saveCopy && <button type="button" disabled={working} onClick={() => store.actions.get(compared.id)?.saveCopy?.()}>另存为副本</button>}
+          {compared.dirty && store.actions.get(compared.id)?.overwrite && <>
+            <button type="button" disabled={working} onClick={() => void load([compared], true)}>放弃当前编辑并重载磁盘版本</button>
+            <button type="button" disabled={working || !store.actions.get(compared.id)?.canOverwrite?.()} onClick={() => { store.actions.get(compared.id)?.overwrite?.(); close(); }}>确认覆盖磁盘</button>
+          </>}
+        </div>
+      </> : <p role="status">{compared ? "磁盘版本又发生了变化。" : "该文件的磁盘变更已处理。"} {compared && <button type="button" onClick={() => void compare(compared)}>比较最新版本</button>}</p>}
+      {message && <p role="status">{message}</p>}
+      {feedback}
+    </WorkspaceDialog> : list && <WorkspaceDialog key="list" title="磁盘文件变更" onClose={close} restoreFocusRef={trigger}>
+      {changes.length ? <ul className="disk-change-list">{changes.map(item => <li key={item.id}>
+        <label><input type="checkbox" checked={!item.dirty && !excluded.has(item.id)} disabled={item.dirty || working}
+          onChange={event => {
+            const checked = event.target.checked;
+            setExcluded(previous => {
+              const next = new Set(previous);
+              if (checked) next.delete(item.id);
+              else next.add(item.id);
+              return next;
+            });
+          }} /><span>{item.name}{item.dirty && "（有未保存编辑）"}<small title={item.path}>{item.path}</small></span></label>
+        <button type="button" disabled={working} onClick={() => void compare(item)}>比较磁盘版本</button>
+      </li>)}</ul> : <p>当前没有待处理的磁盘变更。</p>}
+      {message && <p role="status">{message}</p>}
+      <div className="disk-change-controls">
+        <button type="button" disabled={working || !selected.length} onClick={() => void load(selected)}>载入所选磁盘版本（{selected.length}）</button>
+        <button type="button" onClick={() => { store.defer(); close(); }}>稍后</button>
+      </div>
+      {feedback}
+    </WorkspaceDialog>}
+    {!list && !comparison && feedback}
+  </>;
+}

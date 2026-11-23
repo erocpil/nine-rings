@@ -16,7 +16,9 @@ import { WorkbenchEditorSettingsDialog } from "./EditorSettings";
 import { useWorkbenchTypography, workbenchTypographyVariables } from "./typography";
 import { blockFontFamily } from "../../lib/editor-appearance";
 import { useLocalFileDetails } from "../../hooks/useLocalFileDetails";
-import { useLocalFileRevisionCheck } from "../../hooks/useLocalFileRevisionCheck";
+import { useDiskChange } from "../../hooks/useDiskChange";
+import { DiskChangeNotice } from "../../components/DiskChangeNotice";
+import { DiskChanges } from "../../lib/local-files/disk-changes";
 import { useLocalMarkdownImages } from "../../hooks/useLocalMarkdownImages";
 import { useNativeMenuActions } from "../../hooks/useNativeMenuActions";
 import { useDocumentPreview } from "../../hooks/useDocumentPreview";
@@ -63,9 +65,10 @@ import "../../styles/local-files.css";
 
 const MarkdownWorkspace = lazy(() => import("../../components/LocalMarkdownWorkspace").then(module => ({ default: module.LocalMarkdownWorkspace })));
 const DISK_CONFLICT = "磁盘文件已被外部修改。当前编辑已保留。";
-const DISK_RELOADED = "磁盘文件已重新载入。";
 
-export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false, onFollowFile, linkRequest, onLinkHistory, linkHistory, linkOrigin, relocation, relocationReply }: {
+export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false, onFollowFile, linkRequest, onLinkHistory, linkHistory, linkOrigin, relocation, relocationReply, diskChanges, diskChangeId }: {
+  diskChanges?: DiskChanges;
+  diskChangeId?: string;
   relocation?: WorkbenchRelocationRequest;
   relocationReply?: WorkbenchEditorPort["relocationReply"];
   linkOrigin?: { rootId: string; node: string; read: LocalSourceHost["read"] };
@@ -116,6 +119,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const positionRef = useRef(position); positionRef.current = position;
   const session = useRef<EditorState | null>(null);
   const reloadPosition = useRef<LinkViewPosition>();
+  const parkedScroll = useRef<{ rendered?: { top: number; left: number }; source?: { top: number; left: number } }>({});
   const renderedScroller = useCallback(() => previewRoot.current?.querySelector<HTMLElement>(".workbench-rendered-session .note-editor-scroll"), []);
   const renderedEditor = useRef<Editor | null>(null);
   const readonlyCurrent = useRef(true);
@@ -127,33 +131,47 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const resolveResource = useLocalMarkdownImages(provider, linkOrigin?.rootId ?? file.rootId, active && (renderMarkdown || splitVisible) ? resourceNode : undefined, renderEpoch);
   const renderMode = useRef(renderMarkdown); renderMode.current = renderMarkdown;
   const registerRenderedFlush = useCallback((value: LocalRenderedFlush | null) => { renderedFlush.current = value; }, []);
+  const restoreReloadPosition = useCallback(() => {
+    const saved = reloadPosition.current;
+    if (!saved || !activeCurrent.current || saved.rendered !== renderMode.current) return;
+    const rendered = renderedEditor.current;
+    const source = handle.current;
+    if (saved.rendered ? !rendered || rendered.isDestroyed : !source) return;
+    reloadPosition.current = undefined;
+    if (saved.rendered && rendered) {
+      const end = rendered.state.doc.content.size;
+      setNavigationSelection(rendered, { from: Math.max(1, Math.min(saved.from, end)), to: Math.max(1, Math.min(saved.to, end)) });
+      renderedScroller()?.scrollTo({ top: saved.top, left: saved.left });
+    } else if (source) {
+      source.setSelectionRange(Math.min(saved.from, source.value.length), Math.min(saved.to, source.value.length));
+      source.view.scrollDOM.scrollTo({ top: saved.top, left: saved.left });
+    }
+  }, [handle, renderedScroller]);
+  useEffect(() => {
+    if (!active || !reloadPosition.current) return;
+    const frame = requestAnimationFrame(restoreReloadPosition);
+    return () => cancelAnimationFrame(frame);
+  }, [active, renderEpoch, restoreReloadPosition]);
   const bindRendered = useCallback((editor: Editor | null) => {
     renderedEditor.current = editor; positionRef.current.onRenderedReady(editor);
-    const saved = reloadPosition.current;
-    if (editor && saved?.rendered) {
-      reloadPosition.current = undefined;
-      requestAnimationFrame(() => {
-        if (renderedEditor.current !== editor || editor.isDestroyed || !renderMode.current) return;
-        const end = editor.state.doc.content.size;
-        setNavigationSelection(editor, { from: Math.max(1, Math.min(saved.from, end)), to: Math.max(1, Math.min(saved.to, end)) });
-        renderedScroller()?.scrollTo({ top: saved.top, left: saved.left });
-      });
-    }
+    if (editor && reloadPosition.current) requestAnimationFrame(restoreReloadPosition);
     if (editor && activeCurrent.current && renderMode.current && !document.querySelector("dialog[open]")) {
       if (readonlyCurrent.current) previewRoot.current?.focus({ preventScroll: true });
       else requestAnimationFrame(() => { if (activeCurrent.current && renderMode.current && renderedEditor.current === editor && !editor.isDestroyed && !document.querySelector("dialog[open]")) editor.view.focus(); });
     }
-  }, [renderedScroller]);
+  }, [restoreReloadPosition]);
   const capturePosition = useCallback((): LinkViewPosition => {
     if (renderMode.current) {
       const selection = renderedEditor.current?.state.selection;
       const scroll = renderedScroller();
-      return { rendered: true, from: selection?.from ?? 0, to: selection?.to ?? 0, top: scroll?.scrollTop ?? 0, left: scroll?.scrollLeft ?? 0 };
+      const offset = scroll?.isConnected ? { top: scroll.scrollTop, left: scroll.scrollLeft } : parkedScroll.current.rendered;
+      return { rendered: true, from: selection?.from ?? 0, to: selection?.to ?? 0, top: offset?.top ?? 0, left: offset?.left ?? 0 };
     }
     const editor = handle.current;
     const selection = editor?.view.state.selection.main;
-    return { rendered: false, from: selection?.anchor ?? 0, to: selection?.head ?? 0,
-      top: editor?.view.scrollDOM.scrollTop ?? 0, left: editor?.view.scrollDOM.scrollLeft ?? 0 };
+    const scroll = editor?.view.scrollDOM;
+    const offset = scroll?.isConnected ? { top: scroll.scrollTop, left: scroll.scrollLeft } : parkedScroll.current.source;
+    return { rendered: false, from: selection?.anchor ?? 0, to: selection?.head ?? 0, top: offset?.top ?? 0, left: offset?.left ?? 0 };
   }, [handle, renderedScroller]);
   const current = useCallback(() => { renderedFlush.current?.flush(); return sourceRef.current; }, []);
   const changePreviewMode = (value: boolean) => {
@@ -216,7 +234,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const movePosition = useRef<LinkViewPosition>();
   const acknowledgedRelocation = useRef<number>();
   const [external, setExternal] = useState<LocalFileSnapshot | null>(null);
-  const [diskChange, setDiskChange] = useState<LocalFileSnapshot | string | null>(null);
+  const [diskIssue, setDiskIssue] = useState("");
+  const changeId = diskChangeId ?? identity;
   const [leave, setLeave] = useState<"close" | "reload" | null>(null);
   const [draftAvailable, setDraftAvailable] = useState(true);
   const [candidate, setCandidate] = useState<LocalFileDraft | null>(null);
@@ -238,6 +257,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     read: () => ({ source: current(), base: baseRef.current }),
     isSaving: () => busy.current,
   }), [current, host, identity, persistDocument]);
+  const [previewDiskChanges] = useState(() => new DiskChanges());
+  const changeStore = diskChanges ?? previewDiskChanges;
   const read = useCallback(async () => {
     if (reading.current || busy.current) return;
     reading.current = true;
@@ -249,10 +270,10 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       catch (cause) { setDraftAvailable(false); setNotice(`恢复草稿不可用，暂时只读：${String(cause)}`); }
       setCandidate(draft?.source !== snapshot.source ? draft : null);
       sourceRef.current = snapshot.source; sourceProjection.current = snapshot.source; setSource(snapshot.source); baseRef.current = snapshot; setBase(snapshot);
-      session.current = null; setRenderEpoch(value => value + 1); setRenderPending(false); setExternal(null); setDiskChange(null); setReadonlyState(readWorkbenchFileView(settings, identity).readonly ?? initialReadonly);
+      session.current = null; setRenderEpoch(value => value + 1); setRenderPending(false); setExternal(null); changeStore.clear(changeId); setDiskIssue(""); setReadonlyState(readWorkbenchFileView(settings, identity).readonly ?? initialReadonly);
     } catch (cause) { setError(String(cause)); }
     finally { reading.current = false; setLoading(false); }
-  }, [file.rootId, file.node.id, host, identity, initialReadonly, settings]);
+  }, [file.rootId, file.node.id, host, identity, initialReadonly, settings, changeStore, changeId]);
   useEffect(() => {
     let live = true;
     if (loadedFile.current?.identity === identity && loadedFile.current.host === host) return;
@@ -318,36 +339,36 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     queueMicrotask(() => { if (live) void respond().catch(cause => { if (live) setError(String(cause)); }); });
     return () => { live = false; };
   }, [relocation, relocationReply, loading, candidate, draftAvailable, leave, external, host, identity, current, capturePosition, handle]);
-  useLocalFileRevisionCheck({
-    identity,
-    enabled: active && !relocation && !untitled && !loading && Boolean(base) && !candidate && !leave,
+  useDiskChange({
+    store: changeStore,
+    id: changeId,
+    name: file.node.name,
+    path: documentPath ?? diskChangeId ?? file.node.id,
+    active,
+    dirty,
+    enabled: (active || Boolean(diskChanges)) && !relocation && !untitled && !loading && Boolean(base) && !candidate && !leave,
     baseline: () => baseRef.current,
-    canCheck: () => !busy.current && !reading.current && !handle.current?.view.composing && !renderedEditor.current?.view.composing,
+    canCheck: () => mounted.current && !busy.current && !reading.current && !handle.current?.view.composing && !renderedEditor.current?.view.composing,
     stat: host.stat?.bind(host, file.rootId, file.node.id),
     read: () => host.read(file.rootId, file.node.id),
-    onChecked(next, baseline) {
-      if (!next) {
-        setDiskChange(change => change === DISK_RELOADED ? change : null);
-        return;
-      }
-      if (current() !== baseline.source) {
-        setDiskChange(change => typeof change === "object" && change?.revision === next.revision ? change : next);
-        return;
-      }
-      baseRef.current = next; setBase(next);
-      sourceProjection.current = next.source; change(next.source);
+    readCurrent: current,
+    saveCopy: () => { void copy(); },
+    apply(next, baseline) {
       if (next.source !== baseline.source) {
         reloadPosition.current = capturePosition();
         session.current = null;
         setRenderEpoch(value => value + 1);
       }
-      setRenderPending(false); setExternal(null); setDiskChange(DISK_RELOADED);
+      baseRef.current = next; setBase(next);
+      sourceProjection.current = next.source; change(next.source);
+      setRenderPending(false); setExternal(null); setDiskIssue("");
       if (persistDocument) {
         void host.drafts.write({ identity, source: next.source, baseSource: next.source, baseRevision: next.revision, bom: next.bom, lineEnding: next.lineEnding, savedAt: Date.now() })
           .catch(cause => { if (mounted.current) setNotice(`本机编辑记录更新失败：${String(cause)}`); });
       }
     },
-    onError(cause) { setDiskChange(`暂时无法重新读取磁盘文件，当前内容已保留。${String(cause)}`); },
+    onRead() { setDiskIssue(""); },
+    onError(cause) { if (active) setDiskIssue(`暂时无法重新读取磁盘文件，当前内容已保留。${String(cause)}`); },
   });
   useEffect(() => {
     if (!dirty || candidate || saving || leave || error) return;
@@ -392,7 +413,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     try {
       const result = await saveLocalSource({ submitted: current(), base: baseRef.current, currentSource: current,
         write: (text, snapshot) => host.write(file.rootId, file.node.id, text, snapshot),
-        committed: saved => { baseRef.current = saved; setBase(saved); setExternal(null); setDiskChange(null); },
+        committed: saved => { baseRef.current = saved; setBase(saved); setExternal(null); changeStore.clear(changeId); setDiskIssue(""); },
         clearDraft: () => host.drafts.remove(identity),
         keepDraft: (text, saved) => host.drafts.write({ identity, source: text, baseSource: saved.source, baseRevision: saved.revision, bom: saved.bom, lineEnding: saved.lineEnding, savedAt: Date.now() }),
       });
@@ -404,11 +425,12 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       if (String(cause).includes("STALE_REVISION")) {
         const snapshot = await host.read(file.rootId, file.node.id).catch(() => null);
         setExternal(snapshot);
-        setDiskChange(snapshot ?? "磁盘文件已变化，未覆盖。暂时无法读取磁盘版本。");
+        if (snapshot) changeStore.record({ id: changeId, name: file.node.name, path: documentPath ?? diskChangeId ?? file.node.id, disk: snapshot, dirty: true });
+        else setDiskIssue("磁盘文件已变化，未覆盖。暂时无法读取磁盘版本。");
       } else setError(String(cause));
       return false;
     } finally { busy.current = false; setSaving(false); }
-  }, [current, host, file.rootId, file.node.id, identity, candidate, untitled, relocation]);
+  }, [current, host, file.rootId, file.node.id, identity, candidate, untitled, relocation, changeStore, changeId, file.node.name, documentPath, diskChangeId]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!active || event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.shiftKey || document.querySelector("dialog[open], [role=dialog]")) return;
@@ -454,14 +476,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const bindHandle = useCallback((editor: SourceEditorHandle | null) => {
     const location = searchLocation.current, snapshot = baseRef.current;
     onSourceReady(editor);
-    const saved = reloadPosition.current;
-    if (editor && saved && !saved.rendered) {
-      reloadPosition.current = undefined;
-      editor.setSelectionRange(Math.min(saved.from, editor.value.length), Math.min(saved.to, editor.value.length));
-      requestAnimationFrame(() => {
-        if (handle.current === editor && !renderMode.current) editor.view.scrollDOM.scrollTo({ top: saved.top, left: saved.left });
-      });
-    }
+    if (editor && reloadPosition.current) requestAnimationFrame(restoreReloadPosition);
     if (editor && activeCurrent.current && !renderMode.current && !readonlyCurrent.current) {
       requestAnimationFrame(() => {
         if (handle.current === editor && activeCurrent.current && !renderMode.current && !readonlyCurrent.current && !document.querySelector("dialog[open], [role=dialog]")) editor.focus();
@@ -472,7 +487,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     if (snapshot.revision !== location.revision || current() !== snapshot.source) return;
     editor.setSelectionRange(Math.min(location.from, editor.value.length), Math.min(location.to, editor.value.length));
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
-  }, [current, onSourceReady, handle]);
+  }, [current, onSourceReady, handle, restoreReloadPosition]);
   const editable = !relocation && !loading && Boolean(base) && !candidate && draftAvailable;
   useNativeMenuActions({
     "document.save": { run: () => save(), enabled: editable && !readonly && dirty && !saving && host.canSaveOriginal(file.rootId) },
@@ -588,7 +603,12 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     {beforeCloseActions}
     <button className="btn-icon workbench-file-close" type="button" aria-label={closeLabel} title={closeLabel === "返回文件浏览" ? "关闭预览，返回文件浏览" : closeLabel} onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
   </>;
-  return <EditorFoldIconContext.Provider value={editorSettings}><section ref={previewRoot} style={workbenchTypographyVariables(typography) as React.CSSProperties} tabIndex={-1} className="local-file-view workbench-source-view" data-source-tools-hidden={!moreTools || undefined} aria-label="文件源码工作区" onClickCapture={event => {
+  return <EditorFoldIconContext.Provider value={editorSettings}><section ref={previewRoot} style={workbenchTypographyVariables(typography) as React.CSSProperties} tabIndex={-1} className="local-file-view workbench-source-view" data-source-tools-hidden={!moreTools || undefined} aria-label="文件源码工作区" onScrollCapture={event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.isConnected) return;
+    if (target === renderedScroller()) parkedScroll.current.rendered = { top: target.scrollTop, left: target.scrollLeft };
+    if (target === handle.current?.view.scrollDOM) parkedScroll.current.source = { top: target.scrollTop, left: target.scrollLeft };
+  }} onClickCapture={event => {
     const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
     const href = anchor?.getAttribute("href");
     if (!markdown || !href || !canFollowMarkdownLink(href) || !event.currentTarget.contains(event.target as Node)) return;
@@ -618,7 +638,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       {titleActions}
     </DocumentTitleBar>}
     {loading && <p role="status">正在读取文件…</p>}
-    {diskChange && <div className="workbench-source-notice" role="status">{typeof diskChange === "string" ? diskChange : <>{DISK_CONFLICT}<button type="button" onClick={() => setExternal(diskChange)}>比较磁盘版本</button></>}</div>}
+    {!diskChanges && <DiskChangeNotice store={changeStore} active={active} />}
+    {diskIssue && <div className="workbench-source-notice" role="status">{diskIssue}<button type="button" aria-label="关闭磁盘读取提示" onClick={() => setDiskIssue("")}>×</button></div>}
     {error && !base && <>{unsupported && <p>此文件暂时无法内置预览，可使用其它应用打开。</p>}<FileBrowserFileDetails rootId={file.rootId} node={file.node.id} provider={provider} /></>}
     {error && !unsupported && !external && !leave && active && <WorkspaceDialog title="文件操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
     {linkCheck !== null && active && <MarkdownLinkCheckDialog key={renderMarkdown ? "rendered" : "source"} node={linkOrigin?.node ?? file.node.id} rootId={linkOrigin?.rootId ?? file.rootId}

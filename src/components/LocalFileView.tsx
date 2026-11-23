@@ -3,7 +3,8 @@ import { canFollowMarkdownLink, localMarkdownLink } from "../lib/local-files/mar
 import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { MoreToolsButton } from "./MoreToolsButton";
 import { useLocalFileDetails } from "../hooks/useLocalFileDetails";
-import { useLocalFileRevisionCheck } from "../hooks/useLocalFileRevisionCheck";
+import { useDiskChange, useDiskChanges } from "../hooks/useDiskChange";
+import type { NineRingsDiskChanges } from "./NineRingsDiskChanges";
 import { localFileInfoTimes } from "../lib/local-files/file-info-times";
 import { saveLocalSource } from "../lib/local-files/source-save";
 import { checkpointLocalSource } from "../lib/local-files/source-checkpoint";
@@ -16,6 +17,7 @@ import { consumeRenamedFileFocus, renameLocalDocument } from "../lib/local-files
 import { DocumentPreviewControls } from "./DocumentPreviewControls";
 import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useDocumentPreview } from "../hooks/useDocumentPreview";
+import { setNavigationSelection } from "../hooks/useEditorNavigation";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { prepareLocalMarkdownView } from "../lib/local-files/markdown-view-switch";
@@ -33,6 +35,7 @@ import { EditorView } from "@codemirror/view";
 import { localFileService, resolveRelativeNode, type LocalFileSnapshot } from "../lib/local-files/service";
 import { readLocalDraft, removeLocalDraft, writeLocalDraft } from "../lib/local-files/recovery";
 import { localFileSessions, localFileSessionEpoch, registerLocalFileCheckpoint, registerLocalFileSaver, setLocalFileDirty } from "../lib/local-files/session";
+import { localFileIdentity, readRecentLocalFiles } from "../lib/local-files/recent";
 import { readLocalFilePosition, saveLocalFilePosition } from "../lib/local-files/position";
 import { isLocalFileReadOnly, LOCAL_FILE_ACCESS_CHANGED_EVENT, setLocalFileReadOnly } from "../lib/local-files/access";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
@@ -41,7 +44,6 @@ import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import type { AppConfig } from "../types/models";
 import { DocumentSourceSurface } from "./DocumentSourceSurface";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { TextDiffView } from "./TextDiffView";
 import { SourceDocumentPreview } from "./SourceDocumentPreview";
 import { openLocalFileView } from "../lib/plugin-system/local-file-view";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
@@ -78,8 +80,9 @@ function loadSymbolFolds(identity: string) {
   } catch { return new Set<string>(); }
 }
 
-export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false, useCustomContextMenu = true, showStatusBlockNumber = true, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true, defaultCodeBlockWrap = true, cjkLatinSpacing = true }: {
+export function LocalFileView({ data, diskChanges, onClose, fontSize, vimModeEnabled = false, useCustomContextMenu = true, showStatusBlockNumber = true, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true, defaultCodeBlockWrap = true, cjkLatinSpacing = true }: {
   data: Readonly<LocalFileViewData>;
+  diskChanges: NineRingsDiskChanges;
   onClose: () => void;
   fontSize: number;
   vimModeEnabled?: boolean;
@@ -98,7 +101,11 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const moreToolsPreference = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
   const moreTools = moreToolsPreference ?? !focusMode;
-  const identity = `${data.rootId}:${data.nodeId}`;
+  const identity = localFileIdentity(data);
+  const diskPath = useMemo(() => {
+    const rootName = readRecentLocalFiles().find(file => file.rootId === data.rootId)?.rootName;
+    return rootName ? `${rootName}/${data.nodeId}` : data.nodeId;
+  }, [data.rootId, data.nodeId]);
   const renameFocus = useRef(consumeRenamedFileFocus(identity));
   const editorSession = useRef<EditorState | null>(null);
   const sourceHandle = useRef<SourceEditorHandle | null>(null);
@@ -118,7 +125,8 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [source, setSource] = useState("");
   const [baseSnapshot, setBaseSnapshot] = useState<LocalFileSnapshot | null>(null);
-  const [externalSnapshot, setExternalSnapshot] = useState<LocalFileSnapshot | null>(null);
+  const pendingDiskChanges = useDiskChanges(diskChanges);
+  const externalSnapshot = pendingDiskChanges.find(item => item.id === identity)?.disk;
   const [accessReadOnly, setReadOnly] = useState(() => isLocalFileReadOnly(data.rootId, data.nodeId));
   const operationLocked = useSyncExternalStore(subscribeLocalOperationLocks, () => isLocalOperationLocked(data.rootId, data.nodeId));
   const readOnly = accessReadOnly || operationLocked;
@@ -128,6 +136,23 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const mobile = useMobileViewport();
   const viewPosition = useMarkdownViewPosition<HTMLElement>(`local-file:${identity}`, !preview, false, localViewRef);
   const renderedEditor = useRef<Editor | null>(null);
+  const renderedReloadPosition = useRef<{ from: number; to: number; top: number; left: number }>();
+  const sourceReloadSelection = useRef<{ anchor: number; head: number }>();
+  const bindRendered = (next: Editor | null) => {
+    renderedEditor.current = next;
+    viewPosition.onRenderedReady(next);
+    if (!next) return;
+    if (renameFocus.current) { renameFocus.current = false; next.view.focus(); }
+    const position = renderedReloadPosition.current;
+    if (!position || !active) return;
+    renderedReloadPosition.current = undefined;
+    requestAnimationFrame(() => {
+      if (renderedEditor.current !== next || next.isDestroyed) return;
+      const end = next.state.doc.content.size;
+      setNavigationSelection(next, { from: Math.min(position.from, end), to: Math.min(position.to, end) });
+      localViewRef.current?.querySelector(".note-editor-scroll")?.scrollTo({ top: position.top, left: position.left });
+    });
+  };
   const sourceHandoff = useRef(false);
   const { onSourceReady, area: handoffArea } = viewPosition;
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "saved" | "error">("clean");
@@ -290,36 +315,51 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   useEffect(() => { localStorage.setItem(symbolFoldsStorageKey(identity), JSON.stringify([...foldedSymbols])); }, [foldedSymbols, identity]);
   useEffect(() => {
     let disposed = false;
-    const controller = new AbortController();
     const cached = localFileSessions.get(identity);
-    setLoading(true); setError(""); setBaseSnapshot(null); setExternalSnapshot(null); restoredScroll.current = false; latestDraft.current.base = null;
-    void localFileService.readSnapshot(data.rootId, data.nodeId).then(async snapshot => {
+    const previous = reload ? undefined : diskChanges.baselines.get(identity)?.snapshot;
+    setLoading(true); setError(""); setBaseSnapshot(null); restoredScroll.current = false; latestDraft.current.base = null;
+    const read = localFileService.readSnapshot(data.rootId, data.nodeId)
+      .then(snapshot => ({ snapshot, issue: "" }))
+      .catch(reason => {
+        if (!previous) throw reason;
+        return { snapshot: previous, issue: `本地文件不可访问：${String(reason)}` };
+      });
+    void read.then(async ({ snapshot, issue }) => {
       if (disposed) return;
       const draft = await readLocalDraft(identity).catch(() => null);
       if (disposed) return;
       const recovered = draft?.source !== undefined;
-      const shown = draft?.source ?? snapshot.source;
+      const diskBase = draft ? snapshot : previous ?? snapshot;
+      const shown = draft?.source ?? diskBase.source;
+      const base = draft && draft.source !== snapshot.source && draft.baseRevision !== snapshot.revision
+        ? { ...snapshot, source: draft.baseSource, revision: draft.baseRevision, bom: draft.bom, lineEnding: draft.lineEnding }
+        : diskBase;
       editorSession.current = cached?.source === shown ? cached.state : null;
       sourceRef.current = shown;
-      setBaseSnapshot(draft && draft.source !== snapshot.source && draft.baseRevision !== snapshot.revision
-        ? { ...snapshot, source: draft.baseSource, revision: draft.baseRevision, bom: draft.bom, lineEnding: draft.lineEnding }
-        : snapshot);
+      latestDraft.current = { source: shown, base };
+      setBaseSnapshot(base);
+      diskChanges.baselines.set(identity, { snapshot: base, dirty: shown !== base.source });
+      if (!issue) {
+        if (base.revision !== snapshot.revision) {
+          diskChanges.record({ id: identity, name: data.name, path: diskPath, disk: snapshot, dirty: shown !== base.source });
+        } else diskChanges.clear(identity);
+      }
       setRenderEpoch(value => value + 1);
       setSource(shown);
-      setSaveState(shown === snapshot.source ? "clean" : "dirty");
-      if (recovered) {
+      setSaveState(shown === base.source ? "clean" : "dirty");
+      if (issue) setRecoveryNotice(issue);
+      else if (recovered) {
         if (draft.source === snapshot.source) {
           setRecoveryNotice("恢复草稿与磁盘内容一致，文件已保存。");
           void removeLocalDraft(identity).catch(() => {});
         } else {
           setRecoveryNotice(draft.baseRevision === snapshot.revision ? "已恢复未保存的本机编辑草稿。" : "发现上次未保存草稿，磁盘文件已变化；请比较后决定保留哪一份。");
-          if (draft.baseRevision !== snapshot.revision) setExternalSnapshot(snapshot);
         }
       }
       setLoading(false);
     }).catch(reason => { if (!disposed) { setError(String(reason)); setLoading(false); } });
-    return () => { disposed = true; controller.abort(); };
-  }, [data.rootId, data.nodeId, identity, language, reload]);
+    return () => { disposed = true; };
+  }, [data.rootId, data.nodeId, data.name, identity, diskChanges, diskPath, reload]);
   useEffect(() => {
     if (!baseSnapshot || source === baseSnapshot.source) { setSaveState(current => current === "saving" || current === "saved" ? current : "clean"); return; }
     setSaveState(current => current === "saving" ? current : "dirty");
@@ -351,26 +391,51 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     return () => cancelAnimationFrame(frame);
   }, [data.location, loading, baseSnapshot, editorHandle, preview]);
   useEffect(() => { if (data.location) setPreview(false); }, [data.location]);
-  useLocalFileRevisionCheck({
-    identity,
-    enabled: active && !loading && Boolean(baseSnapshot),
+  const locallyChanged = Boolean(baseSnapshot && (source !== baseSnapshot.source || saveState === "dirty" || saveState === "saving"));
+  useEffect(() => {
+    if (baseSnapshot) diskChanges.baselines.set(identity, { snapshot: baseSnapshot, dirty: locallyChanged });
+  }, [baseSnapshot, locallyChanged, identity, diskChanges]);
+  useDiskChange({
+    store: diskChanges,
+    id: identity,
+    name: data.name,
+    path: diskPath,
+    active,
+    retain: true,
+    enabled: !loading && Boolean(baseSnapshot),
+    dirty: locallyChanged,
     baseline: () => latestDraft.current.base,
     canCheck: () => !savingOperation.current && !operationLocked && !sourceHandle.current?.view.composing && !renderedEditor.current?.view.composing,
     stat: () => localFileService.stat(data.rootId, data.nodeId),
     read: () => localFileService.readSnapshot(data.rootId, data.nodeId),
-    onChecked(next, baseline) {
-      setRecoveryNotice(notice => notice.startsWith("本地文件不可访问：") ? "" : notice);
-      if (!next) { setExternalSnapshot(null); return; }
-      if (currentSource() !== baseline.source) {
-        setExternalSnapshot(previous => previous?.revision === next.revision ? previous : next);
-        return;
+    readCurrent: currentSource,
+    saveCopy: () => { void saveCopy(); },
+    canOverwrite: () => editing && !savingOperation.current && localFileService.canSaveOriginal(data.rootId),
+    overwrite: () => { void save(true); },
+    apply(next, baseline) {
+      if (next.source !== baseline.source) {
+        const handle = sourceHandle.current;
+        if (handle && handle.view.scrollDOM.clientHeight) {
+          saveLocalFilePosition(identity, localFilePosition(handle));
+          sourceReloadSelection.current = handle.view.state.selection.main;
+        }
+        const rendered = renderedEditor.current;
+        const scroller = localViewRef.current?.querySelector(".note-editor-scroll");
+        if (rendered && scroller?.clientHeight) {
+          const { from, to } = rendered.state.selection;
+          renderedReloadPosition.current = { from, to, top: scroller.scrollTop, left: scroller.scrollLeft };
+        }
+        editorSession.current = null;
+        setRenderEpoch(value => value + 1);
+        changeSource(next.source);
       }
-      setRenderEpoch(value => value + 1);
       latestDraft.current = { source: next.source, base: next };
-      setBaseSnapshot(next); setSource(next.source); sourceRef.current = next.source; editorSession.current = null; setExternalSnapshot(null); setSaveState("clean");
-      setRecoveryNotice("检测到磁盘文件变化，已重新载入并保留阅读位置。");
+      diskChanges.baselines.set(identity, { snapshot: next, dirty: false });
+      setBaseSnapshot(next); setSaveState("clean"); setError("");
+      void removeLocalDraft(identity).catch(reason => setRecoveryNotice(`本机恢复草稿清理失败：${String(reason)}`));
     },
-    onError(reason) { setRecoveryNotice(`本地文件不可访问：${String(reason)}`); },
+    onRead() { setRecoveryNotice(notice => notice.startsWith("本地文件不可访问：") ? "" : notice); },
+    onError(reason) { if (active) setRecoveryNotice(`本地文件不可访问：${String(reason)}`); },
   });
   const bindHandle = useCallback((handle: SourceEditorHandle | null) => {
     const previous = sourceHandle.current;
@@ -398,7 +463,9 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     const cached = localFileSessions.get(identity);
     if (restoredScroll.current) return;
     const position = readLocalFilePosition(identity);
-    const memory = cached?.source === sourceRef.current ? cached : null;
+    const pendingSelection = sourceReloadSelection.current;
+    sourceReloadSelection.current = undefined;
+    const memory = !pendingSelection && cached?.source === sourceRef.current ? cached : null;
     if (!memory && !position) return;
     restoredScroll.current = true; restoringPosition.current = true;
     const view = handle.view;
@@ -418,7 +485,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     else if (position) {
       const offset = Math.max(0, Math.min(view.state.doc.length, position.offset));
       const anchor = Number.isSafeInteger(position.anchor) ? Math.max(0, Math.min(view.state.doc.length, position.anchor!)) : null;
-      view.dispatch({ selection: { anchor: offset }, ...(anchor !== null ? { effects: EditorView.scrollIntoView(anchor, { y: "start", yMargin: Number.isFinite(position.topOffset) ? position.topOffset : 0 }) } : {}) });
+      view.dispatch({ selection: pendingSelection ? { anchor: Math.min(view.state.doc.length, pendingSelection.anchor), head: Math.min(view.state.doc.length, pendingSelection.head) } : { anchor: offset }, ...(anchor !== null ? { effects: EditorView.scrollIntoView(anchor, { y: "start", yMargin: Number.isFinite(position.topOffset) ? position.topOffset : 0 }) } : {}) });
     }
     // Let the initial reveal finish before applying the within-line offset.
     // CodeMirror processes scroll targets after measurement writes.
@@ -501,7 +568,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
         submitted: savingSource, base,
         currentSource,
         write: (text, snapshot) => localFileService.write(data.rootId, data.nodeId, text, snapshot),
-        committed: saved => { latestDraft.current.base = saved; setBaseSnapshot(saved); setExternalSnapshot(null); },
+        committed: saved => { latestDraft.current.base = saved; setBaseSnapshot(saved); diskChanges.clear(identity); },
         clearDraft: () => removeLocalDraft(identity),
         keepDraft: (text, saved) => writeLocalDraft({ identity, source: text, baseSource: saved.source, baseRevision: saved.revision, bom: saved.bom, lineEnding: saved.lineEnding, savedAt: Date.now() }),
       });
@@ -514,13 +581,13 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       setSaveState("error"); setError(message.includes("STALE_REVISION") ? "磁盘文件已变化，请在下方比较后选择重载或覆盖。" : message);
       if (message.includes("STALE_REVISION")) {
         const latest = await localFileService.readSnapshot(data.rootId, data.nodeId).catch(() => null);
-        if (latest) { setExternalSnapshot(latest); setError(""); }
+        if (latest) { diskChanges.record({ id: identity, name: data.name, path: diskPath, disk: latest, dirty: true }); setError(""); }
       }
       return false;
     } finally {
       savingOperation.current = false;
     }
-  }, [baseSnapshot, currentSource, data.nodeId, data.rootId, editing, externalSnapshot, identity]);
+  }, [baseSnapshot, currentSource, data.name, data.nodeId, data.rootId, diskChanges, diskPath, editing, externalSnapshot, identity]);
   useEffect(() => registerLocalFileSaver(identity, async () => {
     if (saveBusy.current) throw new Error("文件正在保存，请稍后重试");
     return (await save()) === true;
@@ -682,10 +749,6 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     {recoveryNotice && <p role="status" className="local-files-message">{recoveryNotice}<button type="button" onClick={() => setRecoveryNotice("")} aria-label="关闭提示">×</button></p>}
     {loading && <p role="status" className="local-files-message">正在读取文件…</p>}
     {error && <p role="alert" className="local-files-message">{error}</p>}
-    {externalSnapshot && <section className="local-file-conflict" aria-label="文件冲突处理"><strong>磁盘文件已发生变化</strong><p>当前编辑和磁盘版本均已保留。比较后选择重载，或明确覆盖磁盘版本。</p>
-      <TextDiffView left={externalSnapshot.source} right={source} leftLabel="磁盘版本" rightLabel="本机编辑" />
-      <div><button type="button" onClick={() => { renderedFlush.current?.flush(); setRenderEpoch(value => value + 1); editorSession.current = null; latestDraft.current = { source: externalSnapshot.source, base: externalSnapshot }; setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
-    </section>}
   </>;
   const propertiesPanel = propertiesOpen ? <LocalFilePropertiesPanel info={fileInfo} onClose={() => setPropertiesOpen(false)} /> : null;
   if (preview && isMarkdown && baseSnapshot && !loading) return <section ref={localViewRef} className="local-file-view" data-properties-open={propertiesOpen || undefined} aria-label="本地文件工作区">
@@ -697,7 +760,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       onEditorConfigChange={onEditorConfigChange} onRename={canRename && !readOnly ? rename : undefined} onOpenProperties={() => setPropertiesOpen(value => !value)} info={fileInfo} navigationControls={navigationControls} bookmarks={bookmarks} onBookmarksChange={setBookmarks}
       onSourceChange={value => { changeSource(value); setSaveState(current => current === "saving" ? current : value === baseSnapshot.source ? "clean" : "dirty"); }}
       onPending={() => { setSaveState(current => current === "saving" ? "saving" : "dirty"); setLocalFileDirty(identity, true); }}
-      onRegisterFlush={registerRenderedFlush} onEditorReady={editor => { renderedEditor.current = editor; viewPosition.onRenderedReady(editor); if (editor && renameFocus.current) { renameFocus.current = false; editor.view.focus(); } }} onClick={openRelative} onOpenLink={href => void openMarkdownLink(href)} canOpenLink={canOpenFileLink} bindHeadingNavigation={bindHeadingNavigation} resolveResource={resolveResource}
+      onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} onClick={openRelative} onOpenLink={href => void openMarkdownLink(href)} canOpenLink={canOpenFileLink} bindHeadingNavigation={bindHeadingNavigation} resolveResource={resolveResource}
       onSelectionChange={selection => {
         if (restoringHistory.current) return;
         const revision = new SourceNavigationDocument(sourceRef.current, [], { sourceLanguage: "markdown" });

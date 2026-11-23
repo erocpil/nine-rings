@@ -1,3 +1,4 @@
+import type { DiskChange } from "../../lib/local-files/disk-changes";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { NotesContextMenu, type NotesMenuTarget } from "../../components/NotesContextMenu";
 import { ToolbarIcon } from "../../components/ToolbarIcon";
@@ -19,8 +20,8 @@ function filePath({ id, file }: WorkbenchEditorSession) {
 type Drop = { anchor: string; after: boolean };
 type Drag = { id: string; pointerId: number; startX: number; startY: number; x: number; y: number; moved: boolean; drop?: Drop };
 
-export function EditorFileTabs({ files, current, dirty, select, close, closeMany, discard, reorder, reveal, report }: {
-  files: WorkbenchEditorSession[]; current: string | null; dirty: Record<string, boolean>;
+export function EditorFileTabs({ files, current, dirty, changed, select, close, closeMany, discard, reorder, reveal, report }: {
+  files: WorkbenchEditorSession[]; current: string | null; dirty: Record<string, boolean>; changed: DiskChange[];
   select: (id: string) => void; close: (id: string) => void; closeMany: (ids: string[]) => void;
   discard: (id: string) => void; reorder: (id: string, anchor: string, after: boolean) => void;
   reveal: (id: string) => void; report: (error: unknown) => void;
@@ -87,45 +88,49 @@ export function EditorFileTabs({ files, current, dirty, select, close, closeMany
       const next = event.key === "Home" ? 0 : event.key === "End" ? files.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + files.length) % files.length;
       select(files[next].id);
     }}>
-      {files.map((file, index) => <div className="workbench-editor-tab" key={file.id} data-editor-tab-id={file.id}
-        data-active={file.id === current || undefined} data-drop-edge={drop?.anchor === file.id ? (drop.after ? "after" : "before") : undefined}>
-        <button role="tab" type="button" aria-selected={file.id === current} tabIndex={file.id === current ? 0 : -1}
-          aria-label={`${dirty[file.id] ? "未保存 " : ""}${file.file.node.name}`}
-          title={`${file.file.node.name}\n${filePath(file) ?? "尚未保存到磁盘"}`} data-tooltip-align="start" data-tooltip-wide="true"
-          onPointerDown={event => {
-            if (event.button !== 0 || event.pointerType === "touch") return;
-            clearTimeout(clickTimer.current);
-            suppressClick.current = false;
-            drag.current = { id: file.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, moved: false };
-            event.currentTarget.setPointerCapture(event.pointerId);
-          }}
-          onPointerMove={event => {
-            const pointer = drag.current;
-            if (!pointer || pointer.pointerId !== event.pointerId || !(event.buttons & 1)) return;
-            pointer.x = event.clientX; pointer.y = event.clientY;
-            if (!pointer.moved && Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY) >= 6) {
-              pointer.moved = true;
-              suppressClick.current = true;
-              tick();
-            }
-          }}
-          onPointerUp={event => finishDrag(event, true)}
-          onPointerCancel={event => finishDrag(event, false)}
-          onLostPointerCapture={event => finishDrag(event, false)}
-          onClick={event => { if (suppressClick.current && event.detail > 0) { event.preventDefault(); return; } select(file.id); }}
-          onAuxClick={event => { if (event.button === 1) { event.preventDefault(); close(file.id); } }}
-          onKeyDown={event => {
-            if (!event.altKey || event.ctrlKey || event.metaKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
-            event.preventDefault();
-            const after = event.key === "ArrowRight";
-            const neighbor = files[index + (after ? 1 : -1)];
-            if (neighbor) reorder(file.id, neighbor.id, after);
-          }}
-          onContextMenu={event => { event.preventDefault(); setMenu({ id: file.id, x: event.clientX, y: event.clientY, title: file.file.node.name, trigger: event.currentTarget }); }}>
-          {dirty[file.id] && <span aria-hidden="true">●</span>}<span className="workbench-editor-tab-name">{shortName(file.file.node.name)}</span>
-        </button>
-        <button type="button" className="btn-icon" aria-label={`关闭 ${file.file.node.name}`} onClick={() => close(file.id)}><ToolbarIcon name="close" /></button>
-      </div>)}
+      {files.map((file, index) => {
+        const hasDiskChange = changed.some(item => item.id === file.id);
+        return <div className="workbench-editor-tab" key={file.id} data-editor-tab-id={file.id}
+          data-active={file.id === current || undefined} data-drop-edge={drop?.anchor === file.id ? (drop.after ? "after" : "before") : undefined}>
+          <button role="tab" type="button" aria-selected={file.id === current} tabIndex={file.id === current ? 0 : -1}
+            aria-description={hasDiskChange ? "磁盘版本有变更" : undefined}
+            aria-label={`${dirty[file.id] ? "未保存 " : ""}${file.file.node.name}`}
+            title={`${file.file.node.name}\n${filePath(file) ?? "尚未保存到磁盘"}`} data-tooltip-align="start" data-tooltip-wide="true"
+            onPointerDown={event => {
+              if (event.button !== 0 || event.pointerType === "touch") return;
+              clearTimeout(clickTimer.current);
+              suppressClick.current = false;
+              drag.current = { id: file.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, moved: false };
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={event => {
+              const pointer = drag.current;
+              if (!pointer || pointer.pointerId !== event.pointerId || !(event.buttons & 1)) return;
+              pointer.x = event.clientX; pointer.y = event.clientY;
+              if (!pointer.moved && Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY) >= 6) {
+                pointer.moved = true;
+                suppressClick.current = true;
+                tick();
+              }
+            }}
+            onPointerUp={event => finishDrag(event, true)}
+            onPointerCancel={event => finishDrag(event, false)}
+            onLostPointerCapture={event => finishDrag(event, false)}
+            onClick={event => { if (suppressClick.current && event.detail > 0) { event.preventDefault(); return; } select(file.id); }}
+            onAuxClick={event => { if (event.button === 1) { event.preventDefault(); close(file.id); } }}
+            onKeyDown={event => {
+              if (!event.altKey || event.ctrlKey || event.metaKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+              event.preventDefault();
+              const after = event.key === "ArrowRight";
+              const neighbor = files[index + (after ? 1 : -1)];
+              if (neighbor) reorder(file.id, neighbor.id, after);
+            }}
+            onContextMenu={event => { event.preventDefault(); setMenu({ id: file.id, x: event.clientX, y: event.clientY, title: file.file.node.name, trigger: event.currentTarget }); }}>
+            {dirty[file.id] && <span aria-hidden="true">●</span>}{hasDiskChange && <span className="disk-change-badge" aria-hidden="true">↻</span>}<span className="workbench-editor-tab-name">{shortName(file.file.node.name)}</span>
+          </button>
+          <button type="button" className="btn-icon" aria-label={`关闭 ${file.file.node.name}`} onClick={() => close(file.id)}><ToolbarIcon name="close" /></button>
+        </div>;
+      })}
     </div>
     {menu && menuFile && <NotesContextMenu label="编辑文件标签菜单" target={menu} close={() => setMenu(null)} actions={[
       { label: "在文件浏览中显示", disabled: !path, run: () => reveal(menuFile.id) },

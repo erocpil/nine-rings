@@ -1,0 +1,70 @@
+.disk-change-notice,
+.disk-change-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem .65rem;
+}
+.disk-change-notice {
+  flex: none;
+  padding: .35rem .7rem;
+  color: var(--text-secondary, inherit);
+  font-size: .875rem;
+}
+.disk-change-badge {
+  flex: none;
+  color: var(--accent, currentColor);
+  font-weight: bold;
+}
+.disk-change-list {
+  display: grid;
+  gap: .6rem;
+  margin: .6rem 0;
+  padding: 0;
+  list-style: none;
+}
+.disk-change-list li,
+.disk-change-list label {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.disk-change-list li {
+  justify-content: space-between;
+}
+.disk-change-list label {
+  min-width: 0;
+}
+.disk-change-list label span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.disk-change-list small {
+  display: block;
+  opacity: .75;
+}
+.disk-change-list button,
+.disk-change-controls button {
+  flex: none;
+}
+.disk-change-toast {
+  position: fixed;
+  z-index: 1100;
+  inset-inline-end: 1rem;
+  inset-block-end: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .45rem .65rem;
+  color: var(--text, CanvasText);
+  background: var(--surface, var(--bg, Canvas));
+  border: 1px solid var(--border, GrayText);
+  border-radius: .4rem;
+  box-shadow: 0 3px 12px #0002;
+}
+.disk-change-toast.is-inline {
+  position: static;
+  align-self: flex-end;
+  margin: .5rem;
+  box-shadow: none;
+}

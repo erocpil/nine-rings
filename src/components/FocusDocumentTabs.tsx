@@ -1,3 +1,4 @@
+import type { DiskChange } from "../lib/local-files/disk-changes";
 import { copyToClipboard } from "../lib/clipboard";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -38,6 +39,7 @@ export function FocusDocumentTabs({
   onReveal,
   localFilesAvailable,
   activeLocalIdentity,
+  diskChanges = [],
   onOpenLocal,
   onRevealLocal,
   onCloseCurrent,
@@ -50,6 +52,7 @@ export function FocusDocumentTabs({
   onReveal: (id: string, path: string) => Promise<void>;
   localFilesAvailable: boolean;
   activeLocalIdentity?: string;
+  diskChanges?: DiskChange[];
   onOpenLocal: (file: RecentLocalFile) => Promise<void>;
   onRevealLocal?: (file: RecentLocalFile) => Promise<void>;
   onCloseCurrent?: () => Promise<void>;
@@ -486,12 +489,14 @@ export function FocusDocumentTabs({
         {localFilesAvailable && (localDragOrder ?? localIds).map(identity => {
           const file = localById.get(identity);
           if (!file) return null;
+          const hasDiskChange = diskChanges.some(item => item.id === identity);
           return <button
             key={identity}
             type="button"
             role="tab"
             aria-selected={identity === activeLocalIdentity}
             aria-label={file.name}
+            aria-description={hasDiskChange ? "磁盘版本有变更" : undefined}
             className="focus-document-tab focus-document-tab-local"
             title={`${file.rootName}/${file.nodeId}`}
             data-tauri-drag-region="false"
@@ -543,6 +548,7 @@ export function FocusDocumentTabs({
             onContextMenu={event => { cancelClick(); event.preventDefault(); setMenu({ id: identity, kind: "local", x: Math.min(event.clientX, window.innerWidth - 200), y: Math.min(event.clientY, window.innerHeight - 300) }); }}
           >
             <ToolbarIcon name="disk" />
+            {hasDiskChange && <span className="disk-change-badge" aria-hidden="true">↻</span>}
             <span>{Array.from(file.name).slice(0, 8).join("")}{Array.from(file.name).length > 8 ? "..." : ""}</span>
           </button>;
         })}

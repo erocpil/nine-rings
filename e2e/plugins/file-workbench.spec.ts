@@ -2820,7 +2820,7 @@ test("已打开 Markdown 迁移后保留只读渲染实例并迁移书签", asyn
   expect(migrated.current).toMatchObject([{ id: "move-test", label: "保存的标题" }]);
 });
 
-test("独立编辑器恢复焦点时重读同长度的外部修改，保留源码光标和只读状态", async ({ page }) => {
+test("独立编辑器发现同长度的外部修改，确认后保留源码光标和只读状态", async ({ page }) => {
   await setupIndependentEditor(page);
   const content = page.locator(".cm-content:visible");
   await expect(content).toContainText("return 1");
@@ -2831,11 +2831,93 @@ test("独立编辑器恢复焦点时重读同长度的外部修改，保留源�
     fixture.sources["alpha.c"] = fixture.sources["alpha.c"].replace("return 1", "return 8");
     window.dispatchEvent(new Event("focus"));
   });
+  const load = page.getByRole("button", { name: "载入磁盘版本", exact: true });
+  await expect(load).toBeVisible();
+  await expect(content).toContainText("return 1");
+  await load.click();
   await expect(content).toContainText("return 8");
-  await expect(page.getByText("磁盘文件已重新载入。", { exact: true })).toBeVisible();
+  const feedback = page.getByText("磁盘文件已重新载入。", { exact: true });
+  await expect(feedback).toBeVisible();
+  await page.getByRole("button", { name: "关闭重新载入提示", exact: true }).click();
+  await expect(feedback).toBeHidden();
   await expect(page.getByRole("button", { name: "允许编辑", exact: true })).toBeEnabled();
   await expect.poll(() => sourceInfo(content)).toMatchObject({ selectionStart: 4, selectionEnd: 9 });
   expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});
+
+test("独立编辑器汇总开着的文件，载入时复核版本并保留后台未保存编辑", async ({ page }) => {
+  await setupIndependentEditor(page);
+  const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
+  const content = page.locator(".cm-content:visible");
+  await tabs.getByRole("tab", { name: "beta.c", exact: true }).click();
+  await expect(content).toContainText("return 2");
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await replaceSource(content, "int beta(void) { return 99; }");
+  await tabs.getByRole("tab", { name: "alpha.c", exact: true }).click();
+  await expect(content).toContainText("return 1");
+  await page.evaluate(() => {
+    const { sources } = (window as any).__editorFixture;
+    sources["alpha.c"] = "int alpha(void) { return 3; }";
+    sources["beta.c"] = "int beta(void) { return 4; }";
+    window.dispatchEvent(new Event("focus"));
+  });
+  const openChanges = page.getByRole("button", { name: "查看变更（2）", exact: true });
+  await expect(openChanges).toBeVisible({ timeout: 12_000 });
+  await expect(tabs.getByRole("tab", { name: "未保存 beta.c", exact: true })).toHaveAccessibleDescription("磁盘版本有变更");
+  await page.getByRole("button", { name: "稍后", exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  const badge = page.getByRole("button", { name: "磁盘变更（2）", exact: true });
+  await badge.click();
+  const list = page.getByRole("dialog", { name: "磁盘文件变更" });
+  await expect(list.getByRole("checkbox", { name: /beta.c/ })).toBeDisabled();
+  await expect(list.getByRole("checkbox", { name: /alpha.c/ })).toBeChecked();
+  await page.evaluate(() => { (window as any).__editorFixture.sources["alpha.c"] = "int alpha(void) { return 5; }"; });
+  const apply = list.getByRole("button", { name: "载入所选磁盘版本（1）", exact: true });
+  await apply.click();
+  await expect(list.getByRole("status")).toContainText("1 个文件未载入");
+  await expect(content).toContainText("return 1");
+  await apply.click();
+  await expect(content).toContainText("return 5");
+  await expect(list.getByRole("checkbox", { name: /beta.c/ })).toBeDisabled();
+  await list.getByRole("button", { name: "稍后", exact: true }).click();
+  await tabs.getByRole("tab", { name: "未保存 beta.c", exact: true }).click();
+  await expect(content).toContainText("return 99");
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});
+
+test("独立编辑器批量载入两个干净文件并保留后台标签的源码选区和滚动", async ({ page }) => {
+  const longSource = Array.from({ length: 220 }, (_, index) => `// beta line ${index + 1}`).join("\n");
+  await setupIndependentEditor(page, { "alpha.c": "int old_alpha;", "beta.c": longSource });
+  const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
+  const alpha = tabs.getByRole("tab", { name: "alpha.c", exact: true });
+  const beta = tabs.getByRole("tab", { name: "beta.c", exact: true });
+  const area = page.locator(".cm-content:visible");
+  const scroll = page.locator(".cm-scroller:visible");
+  await beta.click();
+  await expect(area).toContainText("beta line");
+  await selectSource(area, 1500, 1505);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(1500);
+  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBeGreaterThan(500);
+  const previousScroll = await scroll.evaluate(async element => {
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return element.scrollTop;
+  });
+  await alpha.click();
+  await expect(area).toContainText("old_alpha");
+  await page.evaluate(() => {
+    const { sources } = (window as any).__editorFixture;
+    sources["alpha.c"] = "int new_alpha;";
+    sources["beta.c"] = sources["beta.c"].replace("beta line 1", "beta EDIT 1");
+    window.dispatchEvent(new Event("focus"));
+  });
+  await page.getByRole("button", { name: "查看变更（2）", exact: true }).click({ timeout: 12_000 });
+  await page.getByRole("button", { name: "载入所选磁盘版本（2）", exact: true }).click();
+  await expect(page.getByText("已重新载入 2 个磁盘文件。", { exact: true })).toBeVisible();
+  await expect(area).toContainText("new_alpha");
+  await beta.click();
+  await expect.poll(async () => (await sourceInfo(area)).value.slice(0, 14)).toContain("beta EDIT 1");
+  await expect.poll(() => sourceInfo(area)).toMatchObject({ selectionStart: 1500, selectionEnd: 1505 });
+  await expect.poll(() => scroll.evaluate((element, previous) => Math.abs(element.scrollTop - previous), previousScroll)).toBeLessThanOrEqual(4);
 });
 
 test("独立编辑器轮询发现渲染正文冲突，保留编辑和磁盘副本", async ({ page }) => {
@@ -2843,7 +2925,11 @@ test("独立编辑器轮询发现渲染正文冲突，保留编辑和磁盘副�
   const body = page.locator(".ProseMirror:visible");
   await expect(body).toContainText("Original paragraph");
   await page.evaluate(() => { (window as any).__editorFixture.sources["guide.md"] = "# Guide\n\nUpdated on disk before editing\n"; });
-  await expect(body).toContainText("Updated on disk before editing", { timeout: 10_000 });
+  const load = page.getByRole("button", { name: "载入磁盘版本", exact: true });
+  await expect(load).toBeVisible({ timeout: 10_000 });
+  await expect(body).toContainText("Original paragraph");
+  await load.click();
+  await expect(body).toContainText("Updated on disk before editing");
   // Rendered and source sessions must both consume the new baseline.
   await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
   await expect(page.locator(".cm-content:visible")).toContainText("Updated on disk before editing");
@@ -4224,6 +4310,7 @@ test("编辑器未命名文件在取消保存和重启后保留，首次保存�
   await expect(tabs.getByRole("tab")).toHaveCount(4);
   await page.evaluate(() => { (window as any).__editorFixture.bufferFiles["/chosen/saved.txt"] = "externally updated saved file"; });
   await tabs.getByRole("tab", { name: "saved.txt" }).click();
+  await page.getByRole("button", { name: "载入磁盘版本", exact: true }).click();
   await expect(editor).toContainText("externally updated saved file");
   await expect.poll(() => page.evaluate(() => Object.values((window as any).__editorFixture.records).find((record: any) => record.path))).toMatchObject({
     source: "externally updated saved file", baseSource: "externally updated saved file", baseRevision: "externally updated saved file",

@@ -125,15 +125,21 @@ for (const style of ["classic", "calm", "paper"]) test(`磁盘 Markdown 状态�
   }
 });
 
-test("磁盘 Markdown 无本机编辑时检测到外部变化会自动重载并提示", async ({ page }) => {
+test("磁盘 Markdown 检测到外部变化后等待确认，载入反馈自动消失", async ({ page }) => {
   await createBlankDocument(page);
   const { workspace } = await openWritableLocalDirectory(page, { "external.md": "# Original\n\nOriginal paragraph\n" }, "external.md");
   await workspace.getByRole("button", { name: "渲染", exact: true }).click();
   const body = workspace.locator(".ProseMirror:visible");
   await expect(body).toContainText("Original paragraph");
   await page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("external.md").setText("# External revision\n\nParagraph changed on disk\n"));
+  const load = page.getByRole("button", { name: "载入磁盘版本", exact: true });
+  await expect(load).toBeVisible();
+  await expect(body).toContainText("Original paragraph");
+  await load.click();
   await expect(body).toContainText("Paragraph changed on disk");
-  await expect(workspace.locator(".local-files-message").filter({ hasText: "检测到磁盘文件变化，已重新载入并保留阅读位置。" })).toBeVisible();
+  const feedback = page.getByText("磁盘文件已重新载入。", { exact: true });
+  await expect(feedback).toBeVisible();
+  await expect(feedback).toBeHidden({ timeout: 5000 });
 });
 
 test("磁盘源码恢复焦点时发现同长度外部修改并保留未保存编辑", async ({ page }) => {
@@ -145,11 +151,39 @@ test("磁盘源码恢复焦点时发现同长度外部修改并保留未保存�
     (window as any).__localWorkspaceFixture.nodes.get("external.md").setText("# Original\n\nDisk version 2\n", true);
     window.dispatchEvent(new Event("focus"));
   });
-  const conflict = workspace.getByRole("region", { name: "文件冲突处理" });
+  await page.getByRole("button", { name: "比较磁盘版本", exact: true }).click({ timeout: 2500 });
+  const conflict = page.getByRole("dialog", { name: "磁盘版本比较" });
   await expect(conflict).toContainText("Disk version 2", { timeout: 2500 });
   await expect(conflict).toContainText("Unsaved draft");
   await expect(area).toContainText("Unsaved draft");
   expect(await page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("external.md").read())).toContain("Disk version 2");
+});
+
+test("九环后台磁盘标签合并通知并仅载入选中的干净版本", async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 900 });
+  await createBlankDocument(page);
+  const { tree, workspace } = await openWritableLocalDirectory(page, { "first.txt": "first original", "second.txt": "second original" }, "first.txt");
+  const source = workspace.locator(".cm-content:visible");
+  await replaceSource(source, "first local draft");
+  await tree.getByRole("button", { name: "second.txt", exact: true }).click();
+  await expect(source).toContainText("second original");
+  await page.evaluate(() => {
+    const files = (window as any).__localWorkspaceFixture.nodes;
+    files.get("first.txt").setText("first disk edit");
+    files.get("second.txt").setText("second disk edit");
+    window.dispatchEvent(new Event("focus"));
+  });
+  await page.getByRole("button", { name: "查看变更（2）", exact: true }).click({ timeout: 12_000 });
+  const list = page.getByRole("dialog", { name: "磁盘文件变更" });
+  await expect(list.getByRole("checkbox", { name: /first.txt/ })).toBeDisabled();
+  await expect(list.getByRole("checkbox", { name: /second.txt/ })).toBeChecked();
+  await list.getByRole("button", { name: "载入所选磁盘版本（1）", exact: true }).click();
+  await expect(source).toContainText("second disk edit");
+  await expect(list.getByRole("checkbox", { name: /first.txt/ })).toBeVisible();
+  await list.getByRole("button", { name: "稍后", exact: true }).click();
+  await expect(page.getByRole("button", { name: "磁盘变更（1）" })).toBeVisible();
+  await tree.getByRole("button", { name: "first.txt", exact: true }).click();
+  await expect(source).toContainText("first local draft");
 });
 
 test("浏览器磁盘保存暂存期间的外部写入会取消已打开的写入流", async ({ page }) => {
@@ -171,7 +205,8 @@ test("浏览器磁盘保存暂存期间的外部写入会取消已打开的写�
     };
   });
   await workspace.getByRole("button", { name: "保存文件", exact: true }).click();
-  await expect(workspace.getByRole("region", { name: "文件冲突处理" })).toContainText("From disk");
+  await page.getByRole("button", { name: "比较磁盘版本", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "磁盘版本比较" })).toContainText("From disk");
   await expect(area).toContainText("In editor");
   expect(await page.evaluate(() => {
     const node = (window as any).__localWorkspaceFixture.nodes.get("race.md");
@@ -322,12 +357,14 @@ test("渲染编辑在写入期间继续输入和外部冲突时不丢失，重�
   await append(" 未保存");
   await page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("note.md").setText("# 外部标题\n\n外部正文\n"));
   await workspace.getByRole("button", { name: "保存文件", exact: true }).click();
-  await expect(workspace.getByRole("button", { name: "重载磁盘版本", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "比较磁盘版本", exact: true }).click();
+  const discard = page.getByRole("button", { name: "放弃当前编辑并重载磁盘版本", exact: true });
+  await expect(discard).toBeVisible();
   await expect(editor).toContainText("未保存");
   expect(await disk()).toContain("外部正文");
   await editor.evaluate(element => {
     (element as any).editor.commands.insertContent("重载前的待转换编辑");
-    element.closest(".local-file-view")!.querySelector<HTMLButtonElement>(".local-file-conflict button")!.click();
+    [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(button => button.textContent === "放弃当前编辑并重载磁盘版本")!.click();
   });
   await expect(editor).toContainText("外部正文");
   await expect(editor).not.toContainText("未保存");
