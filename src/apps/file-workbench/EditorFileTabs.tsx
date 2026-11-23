@@ -108,7 +108,8 @@ export function EditorFileTabs({ files, current, dirty, changed, select, close, 
           <button role="tab" type="button" aria-selected={file.id === current} tabIndex={file.id === current ? 0 : -1}
             aria-description={hasDiskChange ? "磁盘版本有变更" : undefined}
             aria-label={`${dirty[file.id] ? "未保存 " : ""}${file.file.node.name}`}
-            title={`${file.file.node.name}\n${containingDirectory(filePath(file)) ?? "尚未保存到磁盘"}`} data-tooltip-align="start" data-tooltip-wide="true"
+            data-tooltip-label={file.file.node.name} data-tooltip-detail={containingDirectory(filePath(file)) ?? "尚未保存到磁盘"}
+            data-tooltip-align="start"
             onPointerDown={event => {
               if (event.button !== 0 || event.pointerType === "touch") return;
               clearTimeout(clickTimer.current);

@@ -2433,9 +2433,10 @@ test("磁盘书签跨源码和渲染修改后，保存重开仍定位到原内�
 });
 
 test("编辑器设置切换固定面板布局，源码与渲染共享多面板设置", async ({ page }) => {
+  const excerpt = "长书签".repeat(30);
   await setupIndependentEditor(page, {
-    "alpha.c": "int value;\nint read_value(void) { return value; }\n",
-    "guide.md": "# Guide\n\n## Chapter\n\nBody\n",
+    "alpha.c": `// ${excerpt}\nint value;\nint read_value(void) { return value; }\n`,
+    "guide.md": `# Guide\n\n## Chapter\n\nBody ${excerpt}\n`,
   });
   const dock = page.getByRole("complementary", { name: "固定阅读面板" });
   const settings = page.getByRole("dialog", { name: "编辑器设置", exact: true });
@@ -2455,11 +2456,25 @@ test("编辑器设置切换固定面板布局，源码与渲染共享多面板�
   await expect(bookmark).toBeVisible();
   await expect(dock.getByRole("complementary", { name: "本地文件同词匹配" })).toBeVisible();
   await expect.poll(async () => (await bookmark.boundingBox())!.y - (await outline.boundingBox())!.y).toBeGreaterThan(0);
+  const sourceWidth = (await dock.boundingBox())!.width;
+  await selectSource(page.locator(".cm-content:visible"), 0);
+  await bookmark.getByRole("button", { name: "添加或移除当前行书签" }).click();
+  await expect(bookmark.locator(".document-bookmark-jump")).toContainText("长书签");
+  expect((await dock.boundingBox())!.width).toBe(sourceWidth);
 
   await page.getByRole("tab", { name: "guide.md", exact: true }).click();
-  await expect(page.locator(".ProseMirror:visible")).toContainText("Body");
+  const rendered = page.locator(".ProseMirror:visible");
+  await expect(rendered).toContainText("Body");
   await expect(outline).toBeVisible();
   await expect(bookmark).toBeVisible();
+  const renderedWidth = (await dock.boundingBox())!.width;
+  await rendered.evaluate(element => {
+    const { editor } = element as HTMLElement & { editor: import("@tiptap/core").Editor };
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+  });
+  await bookmark.getByRole("button", { name: "添加当前位置书签" }).click();
+  await expect(bookmark.locator(".document-bookmark-jump")).toContainText("长书签");
+  expect((await dock.boundingBox())!.width).toBe(renderedWidth);
   await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
   await expect(page.locator(".cm-content:visible")).toContainText("# Guide");
   await expect(outline).toBeVisible();
@@ -4680,7 +4695,7 @@ test("退出保留磁盘标签及顺序，主动关闭才移除，并恢复状�
   await page.reload(); await expect(tabs.getByRole("tab")).toHaveText(["alpha.c"]);
 });
 
-test("编辑标签等宽，长名称截断，悬停和键盘聚焦显示关闭", async ({ page, browserName }) => {
+test("编辑标签等宽，提示区分文件名和目录，悬停和键盘聚焦显示关闭", async ({ page, browserName }, testInfo) => {
   const long = "甲乙丙丁戊己庚辛壬癸.c";
   await page.setViewportSize({ width: 720, height: 620 });
   await setupIndependentEditor(page, { "alpha.c": "int alpha;", [long]: "int beta;" });
@@ -4689,14 +4704,20 @@ test("编辑标签等宽，长名称截断，悬停和键盘聚焦显示关闭",
   const tab = tabs.getByRole("tab", { name: long, exact: true });
   const close = tabs.getByRole("button", { name: `关闭 ${long}`, exact: true });
   await expect(tab).toHaveText("甲乙丙丁戊己庚辛…");
-  await expect(tab).toHaveAttribute("title", `${long}\n/root`);
+  await expect(tab).not.toHaveAttribute("title");
   await expect(close).toHaveCSS("opacity", "0");
   const before = (await tab.boundingBox())!.width;
   expect((await short.boundingBox())!.width).toBe(before);
   await tab.hover();
   const tooltip = page.getByRole("tooltip");
-  await expect(tooltip).toHaveText(`${long}\n/root`);
-  expect(await tooltip.textContent()).toBe(`${long}\n/root`);
+  await expect(tooltip.locator("strong")).toHaveText(long);
+  await expect(tooltip.locator("span")).toHaveText("/root");
+  await expect(tab).toHaveAccessibleDescription(`${long} /root`);
+  const hint = (await tooltip.boundingBox())!;
+  const anchor = (await tab.boundingBox())!;
+  expect(Math.abs(hint.x - anchor.x)).toBeLessThan(1);
+  expect(Math.abs(hint.y - anchor.y - anchor.height - 4)).toBeLessThan(1);
+  expect((await tooltip.locator("span").boundingBox())!.y).toBeGreaterThan((await tooltip.locator("strong").boundingBox())!.y);
   await expect(close).toHaveCSS("opacity", "1");
   expect((await tab.boundingBox())!.width).toBe(before);
   const label = (await tab.locator(".workbench-editor-tab-name").boundingBox())!;
@@ -4705,11 +4726,18 @@ test("编辑标签等宽，长名称截断，悬停和键盘聚焦显示关闭",
   await expect(tab).toHaveAttribute("aria-selected", "true");
   await page.mouse.move(5, 250);
   await expect(close).toHaveCSS("opacity", "0");
-  await page.evaluate(() => {
-    localStorage.setItem("file-workbench:palette", "dark");
-    window.dispatchEvent(new Event("file-workbench:palette"));
-  });
-  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "dark");
+  for (const palette of ["light", "dark", "calm", "mono-aware"]) {
+    await page.evaluate(palette => {
+      localStorage.setItem("file-workbench:palette", palette);
+      window.dispatchEvent(new Event("file-workbench:palette"));
+    }, palette);
+    await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", palette);
+    await tab.hover();
+    await expect(tooltip.locator("span")).toBeVisible();
+    await tooltip.screenshot({ path: testInfo.outputPath(`tab-tooltip-${palette}.png`) });
+    await page.mouse.move(5, 250);
+    await expect(tooltip).toHaveCount(0);
+  }
   expect((await tab.boundingBox())!.width).toBe((await short.boundingBox())!.width);
   await tab.focus();
   // Safari on macOS uses Option-Tab to reach all controls with its default keyboard preferences.

@@ -87,19 +87,20 @@ export function useDesktopDocumentPanels(
           (item.level - base) * 14,
       );
     }
+    // Bookmark labels can span an entire line or excerpt. Let previews fit
+    // that text while the fixed panel keeps its normal or user-resized width.
     for (const item of bookmarks)
-      sizes.bookmark = Math.max(
-        sizes.bookmark,
+      previews.bookmark = Math.max(
+        previews.bookmark,
         Math.ceil(
           context.measureText(item.label || item.preview || "书签").width,
         ) + 136,
       );
     for (const item of annotations)
-      sizes.bookmark = Math.max(
-        sizes.bookmark,
+      previews.bookmark = Math.max(
+        previews.bookmark,
         Math.ceil(context.measureText(item.note || item.exact || "高亮").width) + 136,
       );
-    previews.bookmark = sizes.bookmark;
     return [sizes, previews];
   }, [visible, outline, bookmarks, annotations, outlineSingleLineLimit]);
   const autoWidth =

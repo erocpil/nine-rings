@@ -7,6 +7,7 @@ export function QuickTooltips() {
   const id = useId();
   const [hint, setHint] = useState<{
     text: string;
+    detail?: string;
     left: number;
     top: number;
     host: HTMLElement;
@@ -46,11 +47,12 @@ export function QuickTooltips() {
     const minLeft = Math.max(0, originLeft) + 8;
     const maxRight = Math.min(window.innerWidth, overlay ? originLeft + overlay.clientWidth : Infinity) - 8;
     const left = Math.max(minLeft, Math.min(desiredLeft, maxRight - popup.width)) - originLeft + (overlay?.scrollLeft ?? 0);
-    const above = box.bottom + 6 + popup.height > maxBottom;
+    const gap = hint.detail ? 4 : 6;
+    const above = box.bottom + gap + popup.height > maxBottom;
     const maxTop = Math.max(minTop, maxBottom - popup.height);
     const desiredTop = above
-      ? box.top - popup.height - 6
-      : box.bottom + 6;
+      ? box.top - popup.height - gap
+      : box.bottom + gap;
     // A gutter control can move below the viewport after it triggered the hint
     // (for example, when the last block is clipped by the editor viewport).
     // Flip first, then clamp the tooltip itself so it cannot be cut off at the
@@ -65,7 +67,7 @@ export function QuickTooltips() {
   useEffect(() => {
     let target: HTMLElement | null = null;
     let title = "";
-    let pathTarget = false;
+    let titleRemoved = false;
     let describedBy: string | null = null;
     let ariaLabel: string | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -75,7 +77,7 @@ export function QuickTooltips() {
     const clear = () => {
       clearTimeout(timer);
       if (target) {
-        if (!pathTarget && !target.hasAttribute("title")) target.setAttribute("title", title);
+        if (titleRemoved && !target.hasAttribute("title")) target.setAttribute("title", title);
         if (ariaLabel === null) target.removeAttribute("aria-label");
         else target.setAttribute("aria-label", ariaLabel);
         if (describedBy === null) target.removeAttribute("aria-describedby");
@@ -92,7 +94,7 @@ export function QuickTooltips() {
       const element = candidate ?? (
         event.target instanceof Element
           ? event.target.closest<HTMLElement>(
-              "[data-tooltip-path], button[title], select[title], [role=button][title]",
+              "[data-tooltip-label], [data-tooltip-path], button[title], select[title], [role=button][title]",
             )
           : null);
       if (
@@ -101,7 +103,7 @@ export function QuickTooltips() {
       )
         return;
       clear();
-      if (!element || !(element.dataset.tooltipPath || element.title).trim() || (element.getAttribute("aria-expanded") === "true" && element.dataset.tooltipAlways !== "true") || (element.dataset.tooltipPath && Date.now() < scrollingUntil)) return;
+      if (!element || !(element.dataset.tooltipLabel || element.dataset.tooltipPath || element.title).trim() || (element.getAttribute("aria-expanded") === "true" && element.dataset.tooltipAlways !== "true") || (element.dataset.tooltipPath && Date.now() < scrollingUntil)) return;
       const suppressDocumentPanelHint =
         // Hover previews provide their own context; click-only panels need a hint.
         ["outline", "bookmark"].includes(element.dataset.documentPanelTrigger ?? "") &&
@@ -110,18 +112,21 @@ export function QuickTooltips() {
       if (event.type === "focusin" && !element.matches(":focus-visible"))
         return;
       target = element;
-      pathTarget = Boolean(element.dataset.tooltipPath);
-      title = element.dataset.tooltipPath || element.title;
+      const pathTarget = Boolean(element.dataset.tooltipPath);
+      const detailTarget = Boolean(element.dataset.tooltipLabel);
+      titleRemoved = !pathTarget && !detailTarget;
+      title = element.title;
       describedBy = element.getAttribute("aria-describedby");
       ariaLabel = element.getAttribute("aria-label");
       if (ariaLabel === null && !element.textContent?.trim())
-        element.setAttribute("aria-label", title);
+        element.setAttribute("aria-label", element.dataset.tooltipLabel || element.dataset.tooltipPath || title);
       // Suppress the browser's slower, duplicate tooltip while retaining the
       // original title when the pointer leaves the control.
-      if (!element.dataset.tooltipPath) element.removeAttribute("title");
+      if (titleRemoved) element.removeAttribute("title");
       if (suppressDocumentPanelHint) return;
       const show = () => {
-        if (!element.isConnected || (element.getAttribute("aria-expanded") === "true" && element.dataset.tooltipAlways !== "true") || (pathTarget && !element.dataset.tooltipPath)) {
+        if (!element.isConnected || (element.getAttribute("aria-expanded") === "true" && element.dataset.tooltipAlways !== "true") ||
+            (pathTarget && !element.dataset.tooltipPath) || (detailTarget && !element.dataset.tooltipLabel)) {
           clear();
           return;
         }
@@ -130,7 +135,8 @@ export function QuickTooltips() {
           [describedBy, id].filter(Boolean).join(" "),
         );
         setHint({
-          text: element.dataset.tooltipPath || title,
+          text: element.dataset.tooltipLabel || element.dataset.tooltipPath || title,
+          detail: element.dataset.tooltipDetail,
           target: element,
           // Measure before paint; no character-width estimate for multiline hints.
           left: 0,
@@ -197,13 +203,13 @@ export function QuickTooltips() {
           ref={tooltipRef}
           id={id}
           role="tooltip"
-          className={`quick-tooltip${inDialog ? " quick-tooltip-in-dialog" : ""}${hint.target.dataset.tooltipPath ? " quick-tooltip-path" : ""}${hint.target.dataset.tooltipWide ? " quick-tooltip-wide" : ""}`}
+          className={`quick-tooltip${inDialog ? " quick-tooltip-in-dialog" : ""}${hint.target.dataset.tooltipPath ? " quick-tooltip-path" : ""}${hint.detail ? " quick-tooltip-detailed" : ""}`}
           style={{
             left: hint.left,
             top: hint.top,
           }}
         >
-          {hint.text}
+          {hint.detail ? <><strong>{hint.text}</strong><span>{hint.detail}</span></> : hint.text}
         </div>,
         hint.host,
       );
