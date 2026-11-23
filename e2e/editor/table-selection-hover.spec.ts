@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createBlankDocument } from "../helpers/document";
+import { createBlankDocument, setRenderedFixture } from "../helpers/document";
 import { selectSource, replaceSource, sourceInfo } from "../helpers/source-editor";
 
 async function hoverNativeSelection(page: Page, expected: string) {
@@ -50,6 +50,62 @@ test("表格行列选择、合并拆分与背景色保存重载及源码往返",
   await page.getByTitle("选择当前列", { exact: true }).click();
   await expect(editor.locator(".selectedCell")).toHaveCount(3);
 });
+
+for (const readonly of [false, true]) {
+  test(`跨表格拖动保持文字选区和起点 readonly=${readonly}`, async ({ page }) => {
+    await createBlankDocument(page);
+    await setRenderedFixture(page, [
+      "<p>Before ordinary text</p>",
+      "<table><tbody><tr><td><p>First table start</p></td><td><p>First table right</p></td></tr>",
+      "<tr><td><p>First table bottom</p></td><td><p>First table end</p></td></tr></tbody></table>",
+      "<p>Between the tables</p>",
+      "<table><tbody><tr><td><p>Second table start</p></td><td><p>Second table end</p></td></tr></tbody></table>",
+      "<p>After ordinary text</p>",
+    ].join(""));
+    if (readonly) await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    const body = page.locator(".ProseMirror:visible");
+    await expect(body).toHaveAttribute("contenteditable", String(!readonly));
+    const startText = readonly ? "First table start" : "Before ordinary text";
+    const endText = "Second table start";
+    const point = (text: string, offset: number) => body.getByText(text, { exact: true }).evaluate((element, offset) => {
+      const range = document.createRange();
+      range.setStart(element.firstChild!, offset);
+      range.setEnd(element.firstChild!, offset + 1);
+      const rect = range.getBoundingClientRect();
+      return { x: rect.left + 1, y: rect.y + rect.height / 2 };
+    }, offset);
+    const start = await point(startText, 3);
+    const end = await point(endText, 8);
+    await body.evaluate(element => {
+      type RecordedSelection = { anchor: number; head: number; wholeCells: boolean; normalized: boolean };
+      const observed: RecordedSelection[] = [];
+      const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      editor.on("transaction", ({ transaction }) => {
+        if (!transaction.selectionSet) return;
+        const selection = editor.state.selection;
+        observed.push({
+          anchor: selection.anchor,
+          head: selection.head,
+          wholeCells: "$anchorCell" in selection,
+          normalized: !transaction.selection.eq(selection),
+        });
+      });
+      Object.assign(element, { recordedTableSelections: observed });
+    });
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 24 });
+    await expect(body.locator(".selectedCell")).toHaveCount(0);
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => document.getSelection()?.toString())).toContain("Between the tables");
+    const trace = await body.evaluate(element => (element as Element & {
+      recordedTableSelections: { anchor: number; head: number; wholeCells: boolean; normalized: boolean }[];
+    }).recordedTableSelections);
+    expect(trace.length).toBeGreaterThan(1);
+    expect(new Set(trace.map(selection => selection.anchor)).size).toBe(1);
+    expect(trace.some(selection => selection.wholeCells || selection.normalized)).toBe(false);
+  });
+}
 
 test("悬停选区展示全部宿主工具，移走收回，文字背景可撤销", async ({ page }) => {
   await createBlankDocument(page);

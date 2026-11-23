@@ -2947,6 +2947,33 @@ test("独立编辑器批量载入两个干净文件并保留后台标签的源�
   await expect.poll(() => scroll.evaluate((element, previous) => Math.abs(element.scrollTop - previous), previousScroll)).toBeLessThanOrEqual(4);
 });
 
+test("独立编辑器只读 Markdown 从单元格拖选时保留跨表格文字", async ({ page }) => {
+  await setupIndependentEditor(page, { "tables.md": [
+    "# Tables", "", "| First table start | Right |", "| --- | --- |", "| Bottom | End |",
+    "", "Between the tables", "", "| Second table start | Right again |", "| --- | --- |", "| Last | End again |",
+  ].join("\n") }, "tables.md");
+  const body = page.locator(".ProseMirror:visible");
+  await expect(body).toHaveAttribute("contenteditable", "false");
+  const point = (text: string, offset: number) => body.getByText(text, { exact: true }).evaluate((element, offset) => {
+    const range = new Range();
+    range.setStart(element.firstChild!, offset);
+    range.setEnd(element.firstChild!, offset + 1);
+    const rect = range.getBoundingClientRect();
+    return { x: rect.left + 1, y: rect.y + rect.height / 2 };
+  }, offset);
+  const start = await point("First table start", 3);
+  const end = await point("Second table start", 8);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 24 });
+  await expect(body.locator(".selectedCell")).toHaveCount(0);
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => {
+    const selection = document.getSelection();
+    return { start: selection?.anchorNode?.textContent, end: selection?.focusNode?.textContent, text: selection?.toString() };
+  })).toMatchObject({ start: "First table start", end: "Second table start", text: expect.stringContaining("Between the tables") });
+});
+
 test("独立编辑器轮询发现渲染正文冲突，保留编辑和磁盘副本", async ({ page }) => {
   await setupIndependentEditor(page, { "guide.md": "# Guide\n\nOriginal paragraph\n" }, "guide.md");
   const body = page.locator(".ProseMirror:visible");

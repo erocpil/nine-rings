@@ -11,6 +11,7 @@ import { documentBlockOrdinal, resolveDocumentBlockJump, evaluateDocumentFind } 
 import { DocumentReadingToolbar } from "./DocumentReadingToolbar";
 import { DocumentTitleBar, DocumentToolbar, DocumentAccessToggle } from "./DocumentChrome";
 import { OutlineJumpControls } from "./DocumentNavigationTools";
+import { readonlyTableTextSelection } from "../extensions/ContentSizedTable";
 import { documentRenderingExtensions, readonlyDocumentGuard } from "../extensions/document-rendering";
 import { DocumentImageLibraryContext } from "./DocumentResourceContext";
 import { shortcutTitle } from "../lib/editor-shortcuts";
@@ -339,7 +340,7 @@ function readNativeEditorRange(editor: Editor) {
     try {
       const from = editor.view.posAtDOM(native.anchorNode, native.anchorOffset);
       const to = editor.view.posAtDOM(native.focusNode, native.focusOffset);
-      return from === to ? null : { from: Math.min(from, to), to: Math.max(from, to) };
+      return from === to ? null : { from: Math.min(from, to), to: Math.max(from, to), anchor: from, head: to };
     } catch { return null; }
 }
 
@@ -1136,13 +1137,47 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
   }, [editor, wikiOpen, wikiPos, wikiSuggestions]);
   useEffect(() => {
     if (!editor || !readonly) return;
+    const root = editor.view.dom;
+    const doc = root.ownerDocument;
+    let pointer: number | null = null;
+    let frame = 0;
     const sync = () => {
-      if (editor.isDestroyed || contextSelectionRef.current) return;
+      if (pointer !== null || frame || editor.isDestroyed || contextSelectionRef.current) return;
       const range = readNativeEditorRange(editor);
-      if (range && (range.from !== editor.state.selection.from || range.to !== editor.state.selection.to)) editor.commands.setTextSelection(range);
+      if (!range) return;
+      const { anchor, head } = editor.state.selection;
+      if (range.anchor === anchor && range.head === head) return;
+      editor.view.dispatch(editor.state.tr
+        .setSelection(TextSelection.between(editor.state.doc.resolve(range.anchor), editor.state.doc.resolve(range.head)))
+        .setMeta(readonlyTableTextSelection, true));
     };
-    document.addEventListener("selectionchange", sync);
-    return () => document.removeEventListener("selectionchange", sync);
+    const start = (event: PointerEvent) => {
+      if (!event.isPrimary || event.button !== 0) return;
+      pointer = event.pointerId;
+      cancelAnimationFrame(frame);
+      frame = 0;
+    };
+    const finish = (event?: PointerEvent) => {
+      if (pointer === null || (event && event.pointerId !== pointer)) return;
+      pointer = null;
+      // The final browser selection is available after the pointer's default
+      // action. Keep the DOM in charge while the gesture is in progress.
+      frame = requestAnimationFrame(() => { frame = 0; sync(); });
+    };
+    const blur = () => finish();
+    root.addEventListener("pointerdown", start, true);
+    doc.addEventListener("pointerup", finish, true);
+    doc.addEventListener("pointercancel", finish, true);
+    doc.defaultView?.addEventListener("blur", blur);
+    doc.addEventListener("selectionchange", sync);
+    return () => {
+      cancelAnimationFrame(frame);
+      root.removeEventListener("pointerdown", start, true);
+      doc.removeEventListener("pointerup", finish, true);
+      doc.removeEventListener("pointercancel", finish, true);
+      doc.defaultView?.removeEventListener("blur", blur);
+      doc.removeEventListener("selectionchange", sync);
+    };
   }, [editor, readonly]);
   useEffect(() => {
     if (contextMenu || !editor || editor.isDestroyed) return;

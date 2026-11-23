@@ -4,6 +4,10 @@ import TableCell from "@tiptap/extension-table-cell";
 import Table, { TableView } from "@tiptap/extension-table";
 import type { Node } from "@tiptap/pm/model";
 import type { Editor } from "@tiptap/core";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
+import { findTable, tableEditingKey } from "@tiptap/pm/tables";
+
+export const readonlyTableTextSelection = "readonlyTableTextSelection";
 
 class ContentSizedTableView extends TableView {
   constructor(node: Node, cellMinWidth: number) {
@@ -33,6 +37,41 @@ class ContentSizedTableView extends TableView {
 
 /** Identical column layout in editable and readonly sessions. */
 export const ContentSizedTable = Table.extend({
+  addProseMirrorPlugins() {
+    const editor = this.editor;
+    return (this.parent?.() ?? []).map(plugin => {
+      if (plugin.spec.key !== tableEditingKey) return plugin;
+      const { props, appendTransaction } = plugin.spec;
+      return new Plugin({
+        ...plugin.spec,
+        props: {
+          ...props,
+          handleDOMEvents: {
+            ...props?.handleDOMEvents,
+            // Reading uses the browser's text selection, including inside tables.
+            mousedown(view, event) {
+              return view.editable ? props?.handleDOMEvents?.mousedown?.call(plugin, view, event) : false;
+            },
+          },
+        },
+        appendTransaction(transactions, previous, current) {
+          const selection = current.selection;
+          if (selection instanceof TextSelection && !selection.empty && !transactions.some(tr => tr.docChanged)) {
+            const from = findTable(selection.$from)?.pos;
+            const to = findTable(selection.$to)?.pos;
+            const touchesTable = from !== undefined || to !== undefined;
+            // The table plugin normalizes a text range ending at offset zero
+            // back to its starting block. A pointer crossing that boundary
+            // should keep the range that the browser just reported.
+            const nativeTextRange = transactions.some(tr => tr.getMeta(readonlyTableTextSelection) ||
+              ((!editor.isEditable || from !== to) && tr.getMeta("pointer")));
+            if (touchesTable && nativeTextRange) return null;
+          }
+          return appendTransaction?.call(this, transactions, previous, current);
+        },
+      });
+    });
+  },
   addNodeView() {
     return ({ node }) =>
       new ContentSizedTableView(node, this.options.cellMinWidth);
