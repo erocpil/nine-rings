@@ -13,7 +13,7 @@ export function BufferSourceView(props: Props) {
   useEffect(() => {
     if (!error) return;
     // No editable view was mounted. A window close can keep the native record as-is.
-    closeRequest.current = afterLeave => (afterLeave ?? onClose)();
+    closeRequest.current = afterLeave => (afterLeave ?? onClose)("keep");
     return () => { closeRequest.current = null; };
   }, [error, closeRequest, onClose]);
   if (error) return <div className="workbench-source-view"><p role="alert">本机编辑文档读取失败：{error}</p><button type="button" onClick={() => { setError(""); setAttempt(value => value + 1); }}>重试</button></div>;

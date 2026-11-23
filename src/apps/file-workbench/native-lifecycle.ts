@@ -1,5 +1,6 @@
 import { createQuitConfirmation, QUIT_CONFIRMATION_MS } from "../../lib/quit-confirmation";
-export type WorkbenchCloseRequest = (afterLeave?: () => void) => void;
+export type WorkbenchCloseDecision = "keep" | "discard";
+export type WorkbenchCloseRequest = (afterLeave?: (decision: WorkbenchCloseDecision) => void, allowDiscard?: boolean) => void;
 export interface WorkbenchCloseTransport {
   listen(request: () => void): Promise<() => void>;
   listenQuit?(request: () => void): Promise<() => void>;

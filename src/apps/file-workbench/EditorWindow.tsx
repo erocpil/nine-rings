@@ -13,7 +13,7 @@ import { ToolbarIcon } from "../../components/ToolbarIcon";
 import { ParkedDocument } from "../../components/RetainedDocument";
 import { useWorkbenchPalette } from "./Palette";
 import type { createWorkbenchHost } from "./host";
-import { installWorkbenchClose, type WorkbenchCloseRequest } from "./native-lifecycle";
+import { installWorkbenchClose, type WorkbenchCloseRequest, type WorkbenchCloseDecision } from "./native-lifecycle";
 import { editorSessionKey, editorWindowPort, watchWorkbenchEditor, type WorkbenchEditorPort, type WorkbenchEditorState } from "./editor-window";
 import { moveWorkbenchFilePreferences } from "./file-path-state";
 const BufferView = lazy(() => import("./BufferSourceView").then(module => ({ default: module.BufferSourceView })));
@@ -37,7 +37,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const closeRefs = useRef(new Map<string, MutableRefObject<WorkbenchCloseRequest | null>>());
   const container = useRef<HTMLDivElement>(null);
-  const closing = useRef<{ token: number; ids: string[]; index: number } | null>(null);
+  const closing = useRef<{ token: number; ids: string[]; index: number; discardUntitled: string[] } | null>(null);
   const tabClosing = useRef<{ id: string; cancel: () => void } | null>(null);
   useWorkbenchPalette(host.workspace.settings);
   const [quitHint, setQuitHint] = useState("");
@@ -121,19 +121,23 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
     const request = state.closing;
     if (!request || closing.current) return;
     if (tabClosing.current) { void port.finish(request.token, true).catch(report); return; }
-    const chain = { token: request.token, ids: state.files.map(file => file.id), index: 0 };
+    const chain = { token: request.token, ids: state.files.map(file => file.id), index: 0, discardUntitled: [] as string[] };
     closing.current = chain;
     const next = () => {
       if (closing.current !== chain) return;
       const id = chain.ids[chain.index++];
-      if (!id) { closing.current = null; void port.finish(chain.token, false).catch(report); return; }
+      if (!id) { closing.current = null; void port.finish(chain.token, false, chain.discardUntitled).catch(report); return; }
       setCurrent(id);
       // Reveal the relevant retained session before opening its leave decision.
       requestAnimationFrame(() => {
         if (closing.current !== chain) return;
         const close = closeRefs.current.get(id)?.current;
         if (!close) { setError("编辑器仍在加载，请稍后重新关闭。"); closing.current = null; void port.finish(chain.token, true).catch(report); return; }
-        close(() => { if (closing.current === chain) void port.confirm(chain.token, id).then(next).catch(cause => { report(cause); cancelClosing(); }); });
+        close(decision => {
+          if (closing.current !== chain) return;
+          if (decision === "discard") chain.discardUntitled.push(id);
+          void port.confirm(chain.token, id).then(next).catch(cause => { report(cause); cancelClosing(); });
+        }, true);
       });
     };
     next();
@@ -195,12 +199,12 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
           if (dirty[id]) { await port.select(id); changedSelection = true; }
           const requestClose = closeRefs.current.get(id)?.current;
           if (!requestClose) throw new Error("文件仍在加载，请稍后关闭标签");
-          const confirmed = await new Promise<boolean>(resolve => {
-            job.cancel = () => resolve(false);
-            requestClose(() => resolve(true));
+          const decision = await new Promise<WorkbenchCloseDecision | null>(resolve => {
+            job.cancel = () => resolve(null);
+            requestClose(resolve, true);
           });
-          if (!confirmed) return;
-          await port.remove(id);
+          if (!decision) return;
+          await port.remove(id, decision === "discard");
         }
         if (retained && changedSelection) await port.select(retained);
       } catch (cause) { report(cause); }
@@ -232,7 +236,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
           onLinkHistory={(direction, position) => { void traverseLinks(direction, position).catch(report); }}
           relocation={state.relocation?.id === item.id ? state.relocation : undefined}
           relocationReply={port.relocationReply}
-          navigationRequest={item.openRevision} active={current === item.id && !state.closing} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={() => { if (tabClosing.current?.id === item.id) tabClosing.current.cancel(); cancelClosing(); }} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
+          navigationRequest={item.openRevision} active={current === item.id && !state.closing} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={decision => { void port.remove(item.id, decision === "discard").catch(report); }} onCloseCancelled={() => { if (tabClosing.current?.id === item.id) tabClosing.current.cancel(); cancelClosing(); }} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
       </ParkedDocument>;
     })}
     {discard && <WorkspaceDialog title="删除本机编辑草稿" onClose={() => { if (!discarding) setDiscard(null); }}><p>删除后无法恢复此编辑文档的未保存内容，已经保存的磁盘文件不会删除。</p><button type="button" disabled={discarding} onClick={() => setDiscard(null)}>取消</button><button type="button" disabled={discarding} onClick={() => {

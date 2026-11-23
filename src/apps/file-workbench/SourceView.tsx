@@ -43,7 +43,7 @@ import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspa
 import { FileBrowserMarkdownMode } from "../../components/FileBrowserMarkdownMode";
 import { FileBrowserFileDetails } from "../../components/FileBrowserFileDetails";
 import type { BrowserDirectoryProvider } from "../../lib/local-files/browser-contract";
-import type { WorkbenchCloseRequest } from "./native-lifecycle";
+import type { WorkbenchCloseDecision, WorkbenchCloseRequest } from "./native-lifecycle";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useMemo, type MutableRefObject, type ReactNode } from "react";
 import type { EditorState } from "@codemirror/state";
 import { DocumentSourceSurface } from "../../components/DocumentSourceSurface";
@@ -82,7 +82,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   active?: boolean; closeLabel?: string; onCloseCancelled?: () => void; onDirtyChange?: (dirty: boolean) => void;
   settings: BrowserSettingsStore;
   headerActions?: ReactNode;
-  file: BrowserFileOpen & { relocatedFrom?: string }; host: LocalSourceHost; provider: BrowserDirectoryProvider; onClose: () => void;
+  file: BrowserFileOpen & { relocatedFrom?: string }; host: LocalSourceHost; provider: BrowserDirectoryProvider; onClose: (decision?: WorkbenchCloseDecision) => void;
   closeRequest: MutableRefObject<WorkbenchCloseRequest | null>;
   onNavigate?: (direction: -1 | 1) => void; previous?: boolean; next?: boolean;
 }) {
@@ -386,16 +386,18 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
   }, [current, checkpoint]);
-  const pendingClose = useRef<(() => void) | null>(null);
-  const finishClose = useCallback(() => {
-    const finish = pendingClose.current; pendingClose.current = null; finish?.();
+  const pendingClose = useRef<{ finish: (decision: WorkbenchCloseDecision) => void; allowDiscard: boolean } | null>(null);
+  const finishClose = useCallback((decision: WorkbenchCloseDecision = "keep") => {
+    const pending = pendingClose.current;
+    pendingClose.current = null;
+    pending?.finish(decision);
   }, []);
   const cancelLeave = () => { pendingClose.current = null; setLeave(null); setError(""); setNotice(""); onCloseCancelled?.(); };
-  const requestClose = useCallback((afterLeave?: () => void) => {
+  const requestClose = useCallback<WorkbenchCloseRequest>((afterLeave, allowDiscard = !afterLeave) => {
     if (busy.current || loading) { setNotice("文件正在加载或保存，请等待完成后再关闭。"); onCloseCancelled?.(); return; }
     let text: string;
     try { text = current(); } catch (cause) { setError(String(cause)); onCloseCancelled?.(); return; }
-    pendingClose.current = afterLeave ?? onClose;
+    pendingClose.current = { finish: afterLeave ?? onClose, allowDiscard };
     if (baseRef.current && (untitled || text !== baseRef.current.source)) setLeave("close");
     else if (candidate || !draftAvailable) finishClose();
     else void checkpoint().then(() => {
@@ -494,6 +496,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     editor.setSelectionRange(Math.min(location.from, editor.value.length), Math.min(location.to, editor.value.length));
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
   }, [current, onSourceReady, handle, restoreReloadPosition]);
+  const discardUntitled = untitled && leave === "close" && pendingClose.current?.allowDiscard;
   const editable = !relocation && !loading && Boolean(base) && !candidate && draftAvailable;
   useNativeMenuActions({
     "document.save": { run: () => save(), enabled: editable && !readonly && dirty && !saving && host.canSaveOriginal(file.rootId) },
@@ -687,9 +690,26 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       </MarkdownSplitPreview>
     </DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>} /></DocumentActiveBoundary></>}</DocumentNavigationWorkspace></div>}
     {settingsOpen && active && <WorkbenchEditorSettingsDialog typography={typography} config={editorSettings} store={settings} onClose={() => setSettingsOpen(false)} />}
-    {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>{error && <p role="alert">{error}</p>}<p>{persistDocument ? "首次保存时选择文件位置；也可保留本机编辑文档，下次启动会恢复。删除本机编辑草稿需通过标签菜单明确确认。" : "请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。"}</p><div>
-      <button type="button" disabled={saving || !host.canSaveOriginal(file.rootId)} onClick={() => { void save().then(clean => { if (clean) { const target = leave; setLeave(null); if (target === "close") finishClose(); else void read(); } }); }}>保存后继续</button>
-      <button type="button" disabled={saving} onClick={() => void keepAndLeave()}>保留草稿后继续</button><button type="button" onClick={cancelLeave}>取消</button>
-    </div></WorkspaceDialog>}
+    {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>
+      {discardUntitled && <p><strong>{file.node.name}</strong> 尚未保存。丢弃后，本机草稿也会删除。</p>}
+      {error && <p role="alert">{error}</p>}
+      <p>{persistDocument ? "首次保存时选择文件位置。保留草稿后，可以在本机继续编辑。" : "请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。"}</p>
+      <div className="workbench-leave-actions">
+        <button type="button" disabled={saving || !host.canSaveOriginal(file.rootId)} onClick={() => {
+          void save().then(clean => {
+            if (!clean) return;
+            setLeave(null);
+            if (leave === "close") finishClose();
+            else void read();
+          });
+        }}>保存后继续</button>
+        <button type="button" disabled={saving} onClick={() => void keepAndLeave()}>保留草稿后继续</button>
+        {discardUntitled && <button type="button" className="workbench-discard-untitled" disabled={saving} onClick={() => {
+          setLeave(null);
+          finishClose("discard");
+        }}>丢弃内容并继续</button>}
+        <button type="button" onClick={cancelLeave}>取消</button>
+      </div>
+    </WorkspaceDialog>}
   </section></EditorFoldIconContext.Provider>;
 }

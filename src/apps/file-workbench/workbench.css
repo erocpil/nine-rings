@@ -184,6 +184,11 @@ html:where([data-workbench-palette]) :where(.workspace-dialog, dialog[open], [ro
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.workbench-leave-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+html[data-workbench-palette] .workspace-dialog .workbench-discard-untitled {
+  color: var(--danger, #b33b36);
+  border-color: currentColor;
+}
 html:where([data-workbench-palette]) :where(.workspace-dialog, dialog[open], [role="dialog"]) :where(button:disabled) {
   opacity: .45;
   cursor: default;

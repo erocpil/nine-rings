@@ -11,9 +11,9 @@ export interface WorkbenchEditorPort {
   select(id: string): Promise<void>;
   reorder(id: string, anchor: string, after: boolean): Promise<void>;
   followLink?(sourceId: string, rootId: string, node: string): Promise<string>;
-  remove(id: string): Promise<void>;
+  remove(id: string, discardUntitled?: boolean): Promise<void>;
   confirm(token: number, id: string): Promise<void>;
-  finish(token: number, cancelled: boolean): Promise<void>;
+  finish(token: number, cancelled: boolean, discardUntitled?: string[]): Promise<void>;
   showBrowser(id?: string): Promise<void>;
   listenQuit?(request: () => void): Promise<() => void>;
   quit?(): Promise<void>;
@@ -26,9 +26,9 @@ export const editorWindowPort: WorkbenchEditorPort = {
   select: id => invoke("workbench_editor_select", { id }),
   reorder: (id, anchor, after) => invoke("workbench_editor_reorder", { id, anchor, after }),
   followLink: (sourceId, rootId, node) => invoke("workbench_follow_editor_link", { sourceId, rootId, node }),
-  remove: id => invoke("workbench_editor_remove", { id }),
+  remove: (id, discardUntitled) => invoke("workbench_editor_remove", { id, ...(discardUntitled ? { discardUntitled } : {}) }),
   confirm: (token, id) => invoke("workbench_editor_confirm_file", { token, id }),
-  finish: (token, cancelled) => invoke("workbench_editor_finish_close", { token, cancelled }),
+  finish: (token, cancelled, discardUntitled) => invoke("workbench_editor_finish_close", { token, cancelled, ...(discardUntitled?.length ? { discardUntitled } : {}) }),
   showBrowser: id => invoke("workbench_show_browser", { id: id ?? null }),
   listenQuit: request => listen("workbench:confirm-quit", request),
   quit: () => invoke("workbench_editor_request_quit"),

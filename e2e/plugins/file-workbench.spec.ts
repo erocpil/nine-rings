@@ -2615,6 +2615,15 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     if (savedSession) { const saved = JSON.parse(savedSession); state.files = saved.files; state.current = saved.current; }
     const persistSession = () => localStorage.setItem("fixture-editor-session", JSON.stringify({ files: state.files, current: state.current }));
     const persist = () => { localStorage.setItem("fixture-editor-buffers", JSON.stringify(records)); persistSession(); };
+    const discardUntitled = (ids: string[]) => {
+      const entries = ids.map(id => state.files.find(file => file.id === id));
+      const bufferIds = entries.map(entry => (entry?.file as { bufferId?: string } | undefined)?.bufferId);
+      if (bufferIds.some(id => !id || !records[id] || records[id].path)) throw new Error("只能丢弃未命名文档");
+      for (const id of bufferIds) delete records[id!];
+      state.files = state.files.filter(item => !ids.includes(item.id));
+      if (ids.includes(state.current)) state.current = state.files[0]?.id ?? "";
+    };
+
     const fixture = { state, sources, writes: [] as string[], relocations: [] as { revision?: string; reason?: string }[], finished: [] as unknown[], revealed: [] as string[], quit: 0, records, cancelSave: true, rejectSelection: false, rejectBufferRead: false, saves: [] as string[], assetReads: [] as string[], stats: [] as string[], bufferFiles: {} as Record<string, string> };
     const emit = (event: string, payload: unknown = null) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload });
     const requestRelocation = (targetNode: string) => { state.relocation = { id: state.current, token: ++state.revision, targetNode }; emit("workbench:editor-changed"); };
@@ -2692,9 +2701,21 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
           persistSession(); state.revision++; emit("workbench:editor-changed"); return;
         }
         if (command === "workbench_show_browser") { if (args.id) fixture.revealed.push(args.id); return; }
-        if (command === "workbench_editor_remove") { state.files = state.files.filter(file => file.id !== args.id); state.current = state.files[0]?.id ?? ""; persistSession(); state.revision++; emit("workbench:editor-changed"); return; }
+        if (command === "workbench_editor_remove") {
+          if (args.discardUntitled) { discardUntitled([args.id]); persist(); }
+          else { state.files = state.files.filter(file => file.id !== args.id); state.current = state.files[0]?.id ?? ""; persistSession(); }
+          state.revision++; emit("workbench:editor-changed"); return;
+        }
         if (command === "workbench_editor_confirm_file") { persistSession(); return; }
-        if (command === "workbench_editor_finish_close") { fixture.finished.push(args); if (args.cancelled) { state.closing = null; state.revision++; emit("workbench:editor-changed"); } else { persistSession(); state.files = []; state.current = ""; state.closing = null; state.revision++; emit("workbench:editor-changed"); } return; }
+        if (command === "workbench_editor_finish_close") {
+          fixture.finished.push(args);
+          if (!args.cancelled) {
+            discardUntitled(args.discardUntitled ?? []);
+            persist();
+            state.files = []; state.current = "";
+          }
+          state.closing = null; state.revision++; emit("workbench:editor-changed"); return;
+        }
         if (command === "workbench_editor_request_quit") { fixture.quit++; return; }
         if (command === "local_files_properties") return { path: `/root/${args.node}`, size: sources[args.node]?.length ?? 0, modifiedMs: 1, createdMs: 1600000000000, accessedMs: 1600000300000 };
         if (command === "local_files_read") return snapshot(args.node);
@@ -4335,6 +4356,7 @@ for (const palette of ["light", "dark", "calm", "mono-aware"]) test(`工作台�
     const value = { foreground: getComputedStyle(probe).color, background: getComputedStyle(probe).backgroundColor };
     probe.remove(); return value;
   });
+  await expect(dialog.getByRole("button", { name: "丢弃内容并继续", exact: true })).toHaveCount(0);
   for (const name of ["保存后继续", "保留草稿后继续", "取消"]) {
     const button = dialog.getByRole("button", { name, exact: true });
     await expect(button).toHaveCSS("appearance", "none");
@@ -4352,6 +4374,63 @@ for (const palette of ["light", "dark", "calm", "mono-aware"]) test(`工作台�
   expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
 });
 
+
+for (const viaTab of [false, true]) {
+  test(`关闭未命名文档时可取消或丢弃草稿 tab=${viaTab}`, async ({ page }) => {
+    await setupIndependentEditor(page);
+    await page.getByRole("button", { name: "新建文件", exact: true }).click();
+    const content = page.locator(".cm-content[contenteditable=true]:visible");
+    await replaceSource(content, "draft to discard");
+    const stored = () => page.evaluate(() => Object.values((window as any).__editorFixture.records).map((record: any) => record.source));
+    await expect.poll(stored).toEqual(["draft to discard"]);
+    const requestClose = async () => {
+      if (!viaTab) return page.getByRole("button", { name: "关闭当前文件", exact: true }).click();
+      const tab = page.getByRole("tab", { name: "未保存 未命名", exact: true });
+      await tab.hover();
+      await page.getByRole("button", { name: "关闭 未命名", exact: true }).click();
+    };
+    const leave = page.getByRole("dialog", { name: "未保存的文件编辑", exact: true });
+    await requestClose();
+    await leave.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(content).toContainText("draft to discard");
+    await requestClose();
+    await leave.getByRole("button", { name: "丢弃内容并继续", exact: true }).click();
+    await expect.poll(stored).toEqual([]);
+    await expect(page.getByRole("tab", { name: /未命名/ })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("tab", { name: "alpha.c", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /未命名/ })).toHaveCount(0);
+  });
+}
+
+test("退出流程成功后才丢弃选中的未命名文档，取消退出保留全部草稿", async ({ page }) => {
+  await setupIndependentEditor(page);
+  const content = page.locator(".cm-content[contenteditable=true]:visible");
+  for (const text of ["discard the first", "keep the second"]) {
+    await page.getByRole("button", { name: "新建文件", exact: true }).click();
+    await replaceSource(content, text);
+  }
+  const stored = () => page.evaluate(() => Object.values((window as any).__editorFixture.records).map((record: any) => record.source));
+  await expect.poll(stored).toEqual(["discard the first", "keep the second"]);
+  const leave = page.getByRole("dialog", { name: "未保存的文件编辑", exact: true });
+  const chooseFirst = async () => {
+    await page.evaluate(() => (window as any).__editorClose(true));
+    await expect(leave.getByText("未命名", { exact: true })).toBeVisible();
+    await leave.getByRole("button", { name: "丢弃内容并继续", exact: true }).click();
+    await expect(leave.getByText("未命名 2", { exact: true })).toBeVisible();
+  };
+  await chooseFirst();
+  await expect.poll(stored).toEqual(["discard the first", "keep the second"]);
+  await leave.getByRole("button", { name: "取消", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.state.closing)).toBeNull();
+  await expect.poll(stored).toEqual(["discard the first", "keep the second"]);
+  await chooseFirst();
+  await leave.getByRole("button", { name: "保留草稿后继续", exact: true }).click();
+  await expect.poll(stored).toEqual(["keep the second"]);
+  await page.reload();
+  await expect(content).toContainText("keep the second");
+  await expect(page.getByRole("tab", { name: "未保存 未命名", exact: true })).toHaveCount(0);
+});
 
 test("编辑器未命名文件在取消保存和重启后保留，首次保存绑定路径并保留标签顺序", async ({ page }) => {
   await setupIndependentEditor(page);

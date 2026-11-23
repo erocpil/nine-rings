@@ -623,8 +623,17 @@ pub fn workbench_editor_select(window: tauri::WebviewWindow, id: String) -> Resu
     Ok(())
 }
 #[tauri::command]
-pub fn workbench_editor_remove(window: tauri::WebviewWindow, id: String) -> Result<(), String> {
-    remove_file(window, id, false)
+pub fn workbench_editor_remove(
+    window: tauri::WebviewWindow,
+    id: String,
+    discard_untitled: Option<bool>,
+) -> Result<(), String> {
+    let removal = if discard_untitled.unwrap_or(false) {
+        BufferRemoval::DiscardUntitled
+    } else {
+        BufferRemoval::Close
+    };
+    remove_file(window, id, removal)
 }
 #[tauri::command]
 pub fn workbench_editor_reorder(
@@ -649,52 +658,28 @@ pub fn workbench_editor_reorder(
     }
     Ok(())
 }
-pub(crate) fn discard_buffer(window: tauri::WebviewWindow, id: String) -> Result<(), String> {
-    remove_file(window, id, true)
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BufferRemoval {
+    Close,
+    DiscardDraft,
+    DiscardUntitled,
 }
-fn remove_file(window: tauri::WebviewWindow, id: String, discard: bool) -> Result<(), String> {
+pub(crate) fn discard_buffer(window: tauri::WebviewWindow, id: String) -> Result<(), String> {
+    remove_file(window, id, BufferRemoval::DiscardDraft)
+}
+fn remove_file(
+    window: tauri::WebviewWindow,
+    id: String,
+    removal: BufferRemoval,
+) -> Result<(), String> {
     editor(&window)?;
     let state = window.state::<EditorWindows>();
     let mut value = state.0.lock().map_err(|_| "编辑器状态不可用")?;
     if value.closing.is_some() || value.relocation.is_some() {
         return Err("编辑器正在确认关闭或移动标签，请等待完成".into());
     }
-    let buffer = value
-        .files
-        .iter()
-        .find(|item| item.id == id)
-        .and_then(|item| item.file["bufferId"].as_str())
-        .map(str::to_owned);
-    let protected = value
-        .files
-        .iter()
-        .find(|item| item.id == id)
-        .and_then(|item| item.file["bufferPath"].as_str())
-        .unwrap_or(&id)
-        .to_owned();
-    let mut next = value.clone();
-    next.close(&id)?;
-    next.persist(window.app_handle())?;
-    if let Some(buffer) = buffer {
-        let documents = window.state::<super::buffers::BufferDocuments>();
-        let result = if discard {
-            documents.discard(&buffer)
-        } else {
-            documents.close(&buffer)
-        };
-        if let Err(error) = result {
-            value
-                .persist(window.app_handle())
-                .map_err(|rollback| format!("{error}；标签记录回滚失败：{rollback}"))?;
-            return Err(error);
-        }
-    }
-    *value = next;
-
-    window
-        .state::<FileWindowAccess>()
-        .release_editor_path(window.label(), std::path::Path::new(&protected));
-    if value.files.is_empty() && value.closing.is_none() {
+    remove_session_file(&window, &mut value, &id, removal)?;
+    if value.files.is_empty() {
         value.revision += 1;
         value.closing = Some(Close {
             token: value.revision,
@@ -706,6 +691,47 @@ fn remove_file(window: tauri::WebviewWindow, id: String, discard: bool) -> Resul
     changed(window.app_handle());
     Ok(())
 }
+fn remove_session_file(
+    window: &tauri::WebviewWindow,
+    value: &mut Session,
+    id: &str,
+    removal: BufferRemoval,
+) -> Result<(), String> {
+    let file = value
+        .files
+        .iter()
+        .find(|item| item.id == id)
+        .ok_or("文件会话已关闭")?;
+    let buffer = file.file["bufferId"].as_str();
+    let path = file.file["bufferPath"].as_str();
+    if removal == BufferRemoval::DiscardUntitled && (buffer.is_none() || path.is_some()) {
+        return Err("只有尚未保存的未命名文档可以丢弃".into());
+    }
+    let protected = path.unwrap_or(id).to_owned();
+    let mut next = value.clone();
+    next.close(id)?;
+    next.persist(window.app_handle())?;
+    if let Some(buffer) = buffer {
+        let documents = window.state::<super::buffers::BufferDocuments>();
+        let result = match removal {
+            BufferRemoval::Close => documents.close(buffer),
+            BufferRemoval::DiscardDraft => documents.discard(buffer),
+            BufferRemoval::DiscardUntitled => documents.discard_untitled(buffer),
+        };
+        if let Err(error) = result {
+            value
+                .persist(window.app_handle())
+                .map_err(|rollback| format!("{error}；标签记录回滚失败：{rollback}"))?;
+            return Err(error);
+        }
+    }
+    *value = next;
+    window
+        .state::<FileWindowAccess>()
+        .release_editor_path(window.label(), std::path::Path::new(&protected));
+    Ok(())
+}
+
 #[tauri::command]
 pub fn workbench_show_browser(
     window: tauri::WebviewWindow,
@@ -893,6 +919,7 @@ pub fn workbench_editor_finish_close(
     window: tauri::WebviewWindow,
     token: u64,
     cancelled: bool,
+    discard_untitled: Option<Vec<String>>,
 ) -> Result<(), String> {
     editor(&window)?;
     let app = window.app_handle().clone();
@@ -909,6 +936,41 @@ pub fn workbench_editor_finish_close(
         drop(state);
         changed(&app);
         return Err("命令行工具仍在运行，请稍后退出".into());
+    }
+    // A cancel in any file dialog leaves all queued discards untouched. Only
+    // a confirmed window close removes them from the saved session and drafts.
+    let discard_untitled = discard_untitled.unwrap_or_default();
+    let discarded = (|| -> Result<(), String> {
+        for (index, id) in discard_untitled.iter().enumerate() {
+            if discard_untitled[..index].contains(id)
+                || !state.files.iter().any(|item| {
+                    item.id == *id
+                        && item.file["bufferId"].is_string()
+                        && item.file["bufferPath"].is_null()
+                })
+            {
+                return Err("丢弃列表包含无效或已保存的文件".into());
+            }
+        }
+        for id in &discard_untitled {
+            let name = state
+                .files
+                .iter()
+                .find(|item| item.id == *id)
+                .and_then(|item| item.file["node"]["name"].as_str())
+                .unwrap_or(id)
+                .to_owned();
+            remove_session_file(&window, &mut state, id, BufferRemoval::DiscardUntitled)
+                .map_err(|error| format!("未能丢弃 {name}：{error}"))?;
+        }
+        Ok(())
+    })();
+    if let Err(error) = discarded {
+        state.closing = None;
+        state.revision += 1;
+        drop(state);
+        changed(&app);
+        return Err(error);
     }
     drop(state);
     window.destroy().map_err(|e| e.to_string())?;

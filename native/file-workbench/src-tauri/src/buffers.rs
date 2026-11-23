@@ -291,13 +291,20 @@ impl BufferDocuments {
         Ok(value)
     }
     pub fn discard(&self, id: &str) -> Result<(), String> {
+        self.discard_record(id, false)
+    }
+    pub fn discard_untitled(&self, id: &str) -> Result<(), String> {
+        self.discard_record(id, true)
+    }
+    fn discard_record(&self, id: &str, untitled_only: bool) -> Result<(), String> {
         let busy = self.saving.lock().map_err(|_| "保存状态不可用")?;
         if busy.contains(id) {
             return Err("文件正在保存，不能删除文档".into());
         }
         let mut records = self.records.lock().map_err(|_| "未保存文档不可用")?;
-        if !records.contains_key(id) {
-            return Err("文档不存在".into());
+        let record = records.get(id).ok_or("文档不存在")?;
+        if untitled_only && record.path.is_some() {
+            return Err("该文档已绑定磁盘文件，不能按未命名文档丢弃".into());
         }
         fs::remove_file(self.directory.join(format!("{id}.json")))
             .map_err(|error| error.to_string())?;
@@ -550,6 +557,7 @@ mod tests {
             .checkpoint(&first.id, next.version, "lost".into(), None)
             .is_err());
         assert!(store.discard(&first.id).is_err());
+        assert!(store.discard_untitled(&first.id).is_err());
         assert!(store.close(&first.id).is_err());
         assert!(store.begin_save(&first.id).is_err());
         drop(saving);
@@ -578,6 +586,7 @@ mod tests {
         let edited = store
             .checkpoint(&first.id, saved.version, "edited".into(), None)
             .unwrap();
+        assert!(store.discard_untitled(&first.id).is_err());
         store.close(&first.id).unwrap();
         assert_eq!(fixture.store().get(&first.id).unwrap().source, "edited");
         store
@@ -587,7 +596,11 @@ mod tests {
         assert!(fixture.store().list().unwrap().is_empty());
         assert_eq!(fs::read_to_string(&path).unwrap(), "saved");
         let another = store.create().unwrap();
-        store.discard(&another.id).unwrap();
+        store
+            .checkpoint(&another.id, another.version, "discarded draft".into(), None)
+            .unwrap();
+        store.discard_untitled(&another.id).unwrap();
+        assert!(store.get(&another.id).is_err());
         assert!(fixture.store().list().unwrap().is_empty());
     }
     #[test]
