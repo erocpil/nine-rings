@@ -65,7 +65,7 @@ for (const readonly of [false, true]) {
     if (readonly) await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
     const body = page.locator(".ProseMirror:visible");
     await expect(body).toHaveAttribute("contenteditable", String(!readonly));
-    const startText = readonly ? "First table start" : "Before ordinary text";
+    const startText = "Before ordinary text";
     const endText = "Second table start";
     const point = (text: string, offset: number) => body.getByText(text, { exact: true }).evaluate((element, offset) => {
       const range = document.createRange();
@@ -104,6 +104,63 @@ for (const readonly of [false, true]) {
     expect(trace.length).toBeGreaterThan(1);
     expect(new Set(trace.map(selection => selection.anchor)).size).toBe(1);
     expect(trace.some(selection => selection.wholeCells || selection.normalized)).toBe(false);
+  });
+}
+
+for (const readonly of [false, true]) {
+  test(`同一表格拖选整格，松开鼠标后保持高亮 readonly=${readonly}`, async ({ page }) => {
+    await createBlankDocument(page);
+    await setRenderedFixture(page, "<table><tbody>" +
+      "<tr><td>口语 Part 1</td><td>直接回应熟悉话题</td><td>本行第三格</td></tr>" +
+      "<tr><td>口语 Part 2</td><td>描述场景</td><td>下行第三格</td></tr></tbody></table>");
+    if (readonly) await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    const body = page.locator(".ProseMirror:visible");
+    await expect(body).toHaveAttribute("contenteditable", String(!readonly));
+    const point = (text: string, offset: number) => body.getByText(text, { exact: true }).evaluate((element, offset) => {
+      const range = new Range();
+      range.setStart(element.firstChild!, offset);
+      range.setEnd(element.firstChild!, offset + 1);
+      const rect = range.getBoundingClientRect();
+      return { x: rect.left + 1, y: rect.y + rect.height / 2 };
+    }, offset);
+    const left = await point("口语 Part 1", 2);
+    const right = await point("直接回应熟悉话题", 3);
+    const selected = body.locator("td.selectedCell");
+    await body.evaluate(element => {
+      const kinds: boolean[] = [];
+      const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      editor.on("transaction", ({ transaction }) => {
+        if (transaction.selectionSet) kinds.push("$anchorCell" in editor.state.selection);
+      });
+      Object.assign(element, { recordedCellSelections: kinds });
+    });
+    for (const [start, end] of [[left, right], [right, left]]) {
+      await body.evaluate(element => { (element as Element & { recordedCellSelections: boolean[] }).recordedCellSelections.length = 0; });
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(end.x, end.y, { steps: 18 });
+      await expect(selected).toHaveText(["口语 Part 1", "直接回应熟悉话题"]);
+      await page.mouse.move(end.x + 8, end.y, { steps: 4 });
+      await page.mouse.up();
+      // Allow the deferred browser-selection synchronization to run.
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await expect(selected).toHaveText(["口语 Part 1", "直接回应熟悉话题"]);
+      const kinds = await body.evaluate(element => (element as Element & { recordedCellSelections: boolean[] }).recordedCellSelections);
+      expect(kinds).toContain(true);
+      expect(kinds.slice(kinds.indexOf(true))).not.toContain(false);
+    }
+    expect(await selected.evaluateAll(cells => cells.map(cell => {
+      const overlay = getComputedStyle(cell, "::after");
+      return [overlay.top, overlay.right, overlay.bottom, overlay.left];
+    }))).toEqual(Array.from({ length: 2 }, () => ["0px", "0px", "0px", "0px"]));
+    const sameCellStart = await point("描述场景", 1);
+    const sameCellEnd = await point("描述场景", 3);
+    await page.mouse.move(sameCellStart.x, sameCellStart.y);
+    await page.mouse.down();
+    await page.mouse.move(sameCellEnd.x, sameCellEnd.y, { steps: 8 });
+    await page.mouse.up();
+    await expect(selected).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => document.getSelection()?.toString())).toBe("述场");
   });
 }
 

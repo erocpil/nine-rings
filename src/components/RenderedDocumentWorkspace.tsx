@@ -1143,6 +1143,9 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
     let frame = 0;
     const sync = () => {
       if (pointer !== null || frame || editor.isDestroyed || contextSelectionRef.current) return;
+      // The DOM range behind a CellSelection is an implementation detail.
+      // Writing it back as text would replace whole-cell highlighting.
+      if (editor.state.selection instanceof CellSelection) return;
       const range = readNativeEditorRange(editor);
       if (!range) return;
       const { anchor, head } = editor.state.selection;

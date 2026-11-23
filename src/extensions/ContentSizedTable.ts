@@ -38,22 +38,11 @@ class ContentSizedTableView extends TableView {
 /** Identical column layout in editable and readonly sessions. */
 export const ContentSizedTable = Table.extend({
   addProseMirrorPlugins() {
-    const editor = this.editor;
     return (this.parent?.() ?? []).map(plugin => {
       if (plugin.spec.key !== tableEditingKey) return plugin;
-      const { props, appendTransaction } = plugin.spec;
+      const { appendTransaction } = plugin.spec;
       return new Plugin({
         ...plugin.spec,
-        props: {
-          ...props,
-          handleDOMEvents: {
-            ...props?.handleDOMEvents,
-            // Reading uses the browser's text selection, including inside tables.
-            mousedown(view, event) {
-              return view.editable ? props?.handleDOMEvents?.mousedown?.call(plugin, view, event) : false;
-            },
-          },
-        },
         appendTransaction(transactions, previous, current) {
           const selection = current.selection;
           if (selection instanceof TextSelection && !selection.empty && !transactions.some(tr => tr.docChanged)) {
@@ -64,7 +53,7 @@ export const ContentSizedTable = Table.extend({
             // back to its starting block. A pointer crossing that boundary
             // should keep the range that the browser just reported.
             const nativeTextRange = transactions.some(tr => tr.getMeta(readonlyTableTextSelection) ||
-              ((!editor.isEditable || from !== to) && tr.getMeta("pointer")));
+              (from !== to && tr.getMeta("pointer")));
             if (touchesTable && nativeTextRange) return null;
           }
           return appendTransaction?.call(this, transactions, previous, current);
