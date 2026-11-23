@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { diffDocumentLines, type DiffLine } from "../lib/document-diff";
+import "../styles/document-comparison.css";
 
 interface DiffRow { kind: "same" | "changed"; same?: DiffLine[]; left?: DiffLine; right?: DiffLine }
 function makeRows(lines: DiffLine[]): DiffRow[] {
