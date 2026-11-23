@@ -1351,6 +1351,28 @@ test("目录比较的双文件差异可核对逐行内容并打开对应编辑�
   });
 });
 
+test("文件暂存架收集多个目录的引用，核验失效项后批量入队", async ({ page }) => {
+  await setupRoadmapFileBrowser(page, { "from/one.txt": "one", "from/missing.txt": "old", "from/sub": null, "from/sub/two.txt": "two" });
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const stage = async (name: string) => {
+    await left.getByRole("option", { name: new RegExp(`^${name}`) }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "加入文件暂存架", exact: true }).click();
+  };
+  await stage("one.txt");
+  await stage("missing.txt");
+  await left.getByRole("option", { name: /^sub/ }).dblclick();
+  await stage("two.txt");
+  await page.evaluate(() => { delete (window as any).__roadmapFiles["from/missing.txt"]; });
+  await page.getByRole("button", { name: "文件暂存架", exact: true }).click();
+  const shelf = page.getByRole("dialog", { name: "文件暂存架", exact: true });
+  await shelf.getByRole("button", { name: "核验并预览" }).click();
+  await expect(shelf.getByRole("status")).toContainText("可入队 2 项 · 失效 1 项");
+  await expect(shelf).toContainText("文件已失效");
+  expect(await page.evaluate(() => (window as any).__roadmapTransfers)).toEqual([]);
+  await shelf.getByRole("button", { name: "确认加入队列" }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__roadmapTransfers)).toEqual(["to/one.txt", "to/two.txt"]);
+});
+
 test("命令面板查找操作和固定、最近目录，并复用写入门禁", async ({ page }) => {
   await page.goto("/file-workbench.html");
   await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);

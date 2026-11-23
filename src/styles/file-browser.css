@@ -320,3 +320,8 @@
 .file-browser-plan-items li > span { color: var(--text-secondary); }
 .file-browser-text-comparison .document-diff-columns { height: min(46dvh, 440px); }
 .file-browser-text-comparison input[type="number"] { width: 5em; }
+.file-browser-shelf { padding: 12px 16px 16px; }
+.file-browser-shelf .file-browser-plan-items li { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.file-browser-shelf .file-browser-plan-items li > span { grid-column: 1; }
+.file-browser-shelf .file-browser-plan-items li > button { grid-column: 2; grid-row: 1 / span 2; }
+.file-browser-shelf footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }

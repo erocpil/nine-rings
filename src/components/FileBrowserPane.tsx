@@ -52,6 +52,7 @@ interface Props {
   onActivate: () => void;
   onChoose: () => void;
   onRefreshRoots: () => void;
+  onShelf?: (rootId: string, rootName: string, parent: string, selected: readonly string[]) => void;
   onOpen: (rootId: string, rootName: string, node: FileNode, siblings?: readonly FileNode[]) => void;
   onOperation: (kind: BrowserOperation["kind"], selection?: readonly string[]) => void;
   operationDisabled: (kind: BrowserOperation["kind"], count: number) => boolean;
@@ -61,7 +62,7 @@ interface Props {
   canDrop: (parent: string, moving: boolean) => boolean;
   onDrop: (event: DragEvent, parent: string) => void;
 }
-export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef, revealNode }: Props) {
+export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onShelf, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef, revealNode }: Props) {
   const workspace = useFileBrowserHost();
   const { display, inherited, change: changeDisplay } = useBrowserDisplay(workspace.settings, side);
   const ROW = display.rowHeight;
@@ -358,6 +359,14 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     } catch (cause) { showMessage(String(cause), "error"); }
     finally { batchOpening.current = false; }
   };
+  const shelfNodes = menu ? nodes.filter(item => menu.selection.includes(item.id) && !item.directory && !item.link) : [];
+  const stageFiles = () => {
+    if (!onShelf || !menu || shelfNodes.length !== menu.selection.length) return;
+    try {
+      onShelf(rootId, root?.name ?? rootId, node, shelfNodes.map(item => item.id));
+      showMessage("已加入文件暂存架");
+    } catch (cause) { showMessage(String(cause), "error"); }
+  };
   const menuActions: FileBrowserMenuAction[] = menu?.item.link ? [
     { label: "打开链接目标", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) },
     { label: "复制名称", run: () => copy(menu.item.name, "名称") },
@@ -374,6 +383,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     { label: "复制名称", separator: true, run: () => copy(menu.selection.map(id => id.split("/").pop()).join("\n"), "名称") },
     { label: "复制路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.path, "路径") },
     { label: "复制完整路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.selection.map(id => browserFullPath(menu.path!, id.split("/").pop()!)).join("\n"), "完整路径") },
+    ...(onShelf ? [{ label: "加入文件暂存架", disabled: !shelfNodes.length || shelfNodes.length !== menu.selection.length, run: stageFiles }] : []),
     ...(["copy", "move", "rename", "batch-rename", "trash"] as const).filter(kind => !compact || (workspace.canWrite(rootId) && (!(kind === "copy" || kind === "move") || workspace.canTransfer()) && (kind !== "trash" || workspace.canTrash()) && (kind !== "rename" || menu.selection.length === 1))).map(kind => ({ label: { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", trash: "移入系统回收站" }[kind], separator: kind === "copy" || kind === "trash", danger: kind === "trash", disabled: hasLink(menu.selection) || operationDisabled(kind, menu.selection.length), run: () => onOperation(kind, menu.selection) })),
   ] : [];
   const changeColumn = (column: BrowserColumn, value: number) => setColumns(current => ({ ...current, [column]: clampBrowserColumn(column, value), autoName: column === "name" ? false : current.autoName, autoModified: column === "modified" ? false : current.autoModified }));

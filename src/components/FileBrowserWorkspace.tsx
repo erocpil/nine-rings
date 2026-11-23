@@ -4,6 +4,8 @@ import { BrowserDirectorySizeCache } from "../lib/local-files/browser-directory-
 import { FileBrowserShortcuts } from "./FileBrowserShortcuts";
 import { useBrowserShortcuts } from "../hooks/useBrowserShortcuts";
 import { browserShortcutAction, browserShortcutCommands, displayBrowserShortcut, saveBrowserShortcuts } from "../lib/local-files/browser-shortcuts";
+import { FileBrowserShelf } from "./FileBrowserShelf";
+import { browserShelfId, type BrowserShelfEntry, type BrowserShelfTarget } from "../lib/local-files/browser-shelf";
 import { FileBrowserCommandPalette, type FileBrowserCommand } from "./FileBrowserCommandPalette";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { FileBrowserRootManager } from "./FileBrowserRootManager";
@@ -39,6 +41,8 @@ export function FileBrowserWorkspace(props: Props) {
 function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile, onClose, toolbarExtras, commands = [], onToolContext }: Props) {
   const compact = workspace.presentation === "compact";
   const { shortcuts, mac } = useBrowserShortcuts(workspace.settings);
+  const [shelf, setShelf] = useState<BrowserShelfEntry[]>([]);
+  const [shelfOpen, setShelfOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const shortcutsButton = useRef<HTMLButtonElement>(null);
@@ -101,7 +105,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
   const previewNavigation = useRef<[BrowserPreviewNavigation | null, BrowserPreviewNavigation | null]>([null, null]);
   const drag = useRef<{ token: string; source: BrowserDragSource } | null>(null);
   const provider = workspace.provider;
-  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); setPaletteOpen(false); setSizeScope(null); drag.current = null; } }, [active]);
+  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); setPaletteOpen(false); setShelfOpen(false); setSizeScope(null); drag.current = null; } }, [active]);
   useEffect(() => workspace.subscribeMutations(change => {
     sizeCache.current.invalidate(change.rootId);
     if (change.targetRootId) sizeCache.current.invalidate(change.targetRootId);
@@ -152,6 +156,24 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
   const focusList = (side: 0 | 1) => restoreBrowserFocus(`[data-browser-side="${side}"][data-browser-row="${latestState.current.activeRows?.[side] ?? 0}"] .file-browser-list`);
   const focusTab = (side: 0 | 1) => restoreBrowserFocus(`[data-browser-side="${side}"][data-browser-row="${latestState.current.activeRows?.[side] ?? 0}"] [role="tab"][aria-selected="true"]`);
   const closePreview = () => { setQuickPreview(false); focusList(state.active); };
+  const addToShelf = (rootId: string, rootName: string, parent: string, nodes: readonly string[]) => {
+    const entries = new Map(shelf.map(entry => [browserShelfId(entry), entry]));
+    for (const node of nodes) {
+      const entry = { rootId, rootName, parent, node }; entries.set(browserShelfId(entry), entry);
+    }
+    if (entries.size > 500) throw new Error("文件暂存架最多保留 500 项，请先移除部分条目");
+    setShelf([...entries.values()]);
+  };
+  const submitTransferPlan = (operations: readonly BrowserOperation[]) => {
+    if (!workspace.canTransfer() || operations.some(operation => !workspace.canWrite(operation.rootId) || !workspace.canWrite(operation.targetRootId))) throw new Error("目录权限已变化或传输不可用");
+    queue.enqueueBatch(operations.map(operation => ({ operation, name: "" })));
+    setTool(null); setShelfOpen(false); setQueueOpen(true);
+  };
+  const shelfTarget = (side: 0 | 1): BrowserShelfTarget | null => {
+    const location = browserLocation(panes[side]);
+    const root = roots.find(root => root.id === location?.rootId);
+    return root && location ? { rootId: root.id, rootName: root.name, parent: location.node } : null;
+  };
   const openComparison = () => {
     const locations = panes.map(browserLocation);
     if (!locations[0] || !locations[1]) return;
@@ -337,13 +359,14 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       </div>
       <button type="button" aria-label="统计当前目录大小" title="统计当前目录大小（手动递归，包含隐藏项）" disabled={!currentLocation || queueBusy} onClick={() => currentLocation && setSizeScope({ rootId: currentLocation.rootId, node: currentLocation.node, name: roots.find(root => root.id === currentLocation.rootId)?.name ?? currentLocation.rootId })}><ToolbarIcon name="info" /></button>
       <button ref={shortcutsButton} type="button" aria-label="文件浏览快捷键" title="文件浏览快捷键" onClick={() => setShortcutsOpen(true)}><ToolbarIcon name="sliders" /></button>
+      {compact && <button type="button" aria-label="文件暂存架" title={`文件暂存架（${shelf.length} 项）`} onClick={() => setShelfOpen(true)}><ToolbarIcon name="bookmark" /></button>}
       {compact && <button type="button" aria-label="命令面板" title={`命令面板（${displayBrowserShortcut("Mod+Shift+P", mac)}）`} onClick={() => setPaletteOpen(true)}><ToolbarIcon name="search" /></button>}
       {toolbarExtras && <div className="file-browser-action-group file-browser-host-tools" role="group" aria-label="工作台工具">{toolbarExtras}</div>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}
     {opening && <p role="status" className="file-browser-opening">正在打开文件…</p>}
     <div className="file-browser-panes" style={{ gridTemplateColumns: `minmax(0, ${state.ratio}fr) 5px minmax(0, ${1 - state.ratio}fr)` }}>
-      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host file-browser-stack" hidden={quickPreview && state.active !== side}>{browserSideRows(state, side).slice(0, compact ? state.visibleRows?.[side] ?? 1 : 1).map((group, row) => { const rowPane = group.tabs[group.active], location = browserLocation(rowPane), rowActive = row === (state.activeRows?.[side] ?? 0); const activate = (current: typeof state) => activateBrowserRow(current, side, row); return <FileBrowserPane revealNode={revealFile && state.active === side && rowActive && location?.selected.includes(revealFile.node) && revealFile.rootId === location.rootId && revealFile.node.split("/").slice(0, -1).join("/") === location.node ? revealFile.node : undefined} target={rowActive && state.active !== side} row={row} rowControl={compact ? <FileBrowserRowCount count={state.visibleRows?.[side] ?? 1} onChange={count => setState(current => setBrowserRowCount(current, side, count))} /> : undefined} previewRef={value => { if (rowActive) previewNavigation.current[side] = value; }} key={group.tabs[group.active].tabId} tabId={group.tabs[group.active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side && rowActive} visible={active && (!quickPreview || state.active === side)} refreshPaused={Boolean(operation || tool || opening || queueOpen || queueBusy)} onExternalChange={() => { sizeCache.current.invalidate(); setSizeScope(null); if (side === state.active) setPreviewRevision(value => value + 1); }} revision={listingRevision} pane={rowPane} roots={roots} provider={provider} onChange={next => setState(current => { const currentGroup = browserSideRows(current, side)[row]; return currentGroup?.tabs[currentGroup.active]?.tabId === group.tabs[group.active].tabId ? updateBrowserRow(current, side, row, pane => typeof next === "function" ? next(pane) : next) : current; })} onActivate={() => setState(current => current.active === side && (current.activeRows?.[side] ?? 0) === row ? current : activate(current))} onChoose={() => void choose(side, row)} onRefreshRoots={() => { sizeCache.current.invalidate(); setSizeScope(null); setRootsRevision(value => value + 1); }} onOpen={(rootId, rootName, node, siblings) => void open(rootId, rootName, node, undefined, siblings)} onOperation={(kind, selection) => startOperation(kind, side, selection)} operationDisabled={(kind, count) => operationDisabled(kind, side, count)} onPreview={() => { setState(current => ({ ...current, active: side })); setQuickPreview(true); }}
+      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host file-browser-stack" hidden={quickPreview && state.active !== side}>{browserSideRows(state, side).slice(0, compact ? state.visibleRows?.[side] ?? 1 : 1).map((group, row) => { const rowPane = group.tabs[group.active], location = browserLocation(rowPane), rowActive = row === (state.activeRows?.[side] ?? 0); const activate = (current: typeof state) => activateBrowserRow(current, side, row); return <FileBrowserPane revealNode={revealFile && state.active === side && rowActive && location?.selected.includes(revealFile.node) && revealFile.rootId === location.rootId && revealFile.node.split("/").slice(0, -1).join("/") === location.node ? revealFile.node : undefined} target={rowActive && state.active !== side} row={row} rowControl={compact ? <FileBrowserRowCount count={state.visibleRows?.[side] ?? 1} onChange={count => setState(current => setBrowserRowCount(current, side, count))} /> : undefined} previewRef={value => { if (rowActive) previewNavigation.current[side] = value; }} key={group.tabs[group.active].tabId} tabId={group.tabs[group.active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side && rowActive} visible={active && (!quickPreview || state.active === side)} refreshPaused={Boolean(operation || tool || opening || queueOpen || queueBusy)} onExternalChange={() => { sizeCache.current.invalidate(); setSizeScope(null); if (side === state.active) setPreviewRevision(value => value + 1); }} revision={listingRevision} pane={rowPane} roots={roots} provider={provider} onChange={next => setState(current => { const currentGroup = browserSideRows(current, side)[row]; return currentGroup?.tabs[currentGroup.active]?.tabId === group.tabs[group.active].tabId ? updateBrowserRow(current, side, row, pane => typeof next === "function" ? next(pane) : next) : current; })} onActivate={() => setState(current => current.active === side && (current.activeRows?.[side] ?? 0) === row ? current : activate(current))} onChoose={() => void choose(side, row)} onRefreshRoots={() => { sizeCache.current.invalidate(); setSizeScope(null); setRootsRevision(value => value + 1); }} onOpen={(rootId, rootName, node, siblings) => void open(rootId, rootName, node, undefined, siblings)} onShelf={compact ? addToShelf : undefined} onOperation={(kind, selection) => startOperation(kind, side, selection)} operationDisabled={(kind, count) => operationDisabled(kind, side, count)} onPreview={() => { setState(current => ({ ...current, active: side })); setQuickPreview(true); }}
       onDragStart={(event, nodes) => {
         if (!location || operation || tool || !workspace.canTransfer()) { event.preventDefault(); return; }
         const token = crypto.randomUUID();
@@ -380,6 +403,9 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       catch (reason) { setError(String(reason)); }
       event.currentTarget.value = "";
     }} />
+    {shelfOpen && active && <FileBrowserShelf entries={shelf} targets={[shelfTarget(0), shelfTarget(1)]} workspace={workspace}
+      onRemove={id => setShelf(previous => previous.filter(entry => browserShelfId(entry) !== id))}
+      onSubmit={submitTransferPlan} onClose={() => setShelfOpen(false)} />}
     {paletteOpen && active && <FileBrowserCommandPalette commands={paletteCommands()} onClose={() => setPaletteOpen(false)} />}
     {sizeScope && active && <FileBrowserToolDialog title="目录大小" onClose={() => setSizeScope(null)}><FileBrowserDirectorySize {...sizeScope} provider={provider} cache={sizeCache.current} /></FileBrowserToolDialog>}
     {shortcutsOpen && active && <FileBrowserShortcuts value={shortcuts} mac={mac} reservations={reservations} restoreFocusRef={shortcutsButton} onClose={() => setShortcutsOpen(false)} onSave={next => saveBrowserShortcuts(workspace.settings, next, mac, workspace.shortcutReservations?.())} />}
@@ -388,11 +414,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
     {tool && active && <FileBrowserToolDialog title={tool.kind === "search" ? "目录搜索" : "目录比较"} onClose={() => setTool(null)}>{tool.kind === "search" ? <LocalFileSearch search={workspace.search} embedded roots={roots} showHidden={panes[state.active].showHidden} active={active} initialScope={tool.scope} onClose={() => setTool(null)} onOpen={hit => { setTool(null); void open(hit.rootId, roots.find(root => root.id === hit.rootId)?.name ?? hit.rootId, { id: hit.node, name: hit.node.split("/").pop()!, directory: false, size: 0 }, { from: hit.from, to: hit.to, revision: hit.revision }); }} /> : <FileBrowserComparison directories={tool.directories} names={tool.names} provider={provider}
       copyPlan={workspace.canTransfer() && tool.directories.every(directory => workspace.canWrite(directory.rootId)) ? {
         roots: tool.directories.map(directory => roots.find(root => root.id === directory.rootId)?.name ?? directory.rootId) as [string, string],
-        submit: operations => {
-          if (!workspace.canTransfer() || operations.some(operation => !workspace.canWrite(operation.rootId) || !workspace.canWrite(operation.targetRootId))) throw new Error("目录权限已变化");
-          queue.enqueueBatch(operations.map(operation => ({ operation, name: "" })));
-          setTool(null); setQueueOpen(true);
-        },
+        submit: submitTransferPlan,
       } : undefined} onOpen={(side, node, location) => { const directory = tool.directories[side]; setTool(null); setQuickPreview(false); setState(current => ({ ...current, active: side })); if (node.directory) changePane(side, current => navigateBrowserPane(current, directory.rootId, node.id)); else void open(directory.rootId, roots.find(root => root.id === directory.rootId)?.name ?? directory.rootId, node, location); }} />}</FileBrowserToolDialog>}
   </section></FileBrowserDragContext.Provider>;
 }
