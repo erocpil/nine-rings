@@ -129,6 +129,27 @@ impl Session {
         app.state::<super::editor_session::EditorSessionStore>()
             .save(&self.files, self.current.as_deref())
     }
+    fn reorder(&mut self, id: &str, anchor: &str, after: bool) -> Result<bool, String> {
+        if self.closing.is_some() || self.relocation.is_some() {
+            return Err("编辑器正在确认关闭或移动文件，请等待完成".into());
+        }
+        let source = self.files.iter().position(|file| file.id == id);
+        let target = self.files.iter().position(|file| file.id == anchor);
+        let (Some(source), Some(target)) = (source, target) else {
+            return Err("文件标签已变化，请重试".into());
+        };
+        if source == target {
+            return Ok(false);
+        }
+        let insert = target + usize::from(after) - usize::from(source < target);
+        if source == insert {
+            return Ok(false);
+        }
+        let file = self.files.remove(source);
+        self.files.insert(insert, file);
+        self.revision += 1;
+        Ok(true)
+    }
     fn close(&mut self, id: &str) -> Result<(), String> {
         let index = self
             .files
@@ -605,6 +626,29 @@ pub fn workbench_editor_select(window: tauri::WebviewWindow, id: String) -> Resu
 pub fn workbench_editor_remove(window: tauri::WebviewWindow, id: String) -> Result<(), String> {
     remove_file(window, id, false)
 }
+#[tauri::command]
+pub fn workbench_editor_reorder(
+    window: tauri::WebviewWindow,
+    id: String,
+    anchor: String,
+    after: bool,
+) -> Result<(), String> {
+    editor(&window)?;
+    let owner = window.state::<EditorWindows>();
+    let _restoring = owner
+        .4
+        .try_lock()
+        .map_err(|_| "标签清单仍在恢复，请稍后调整顺序")?;
+    let mut state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
+    let mut next = state.clone();
+    if next.reorder(&id, &anchor, after)? {
+        next.persist(window.app_handle())?;
+        *state = next;
+        drop(state);
+        changed(window.app_handle());
+    }
+    Ok(())
+}
 pub(crate) fn discard_buffer(window: tauri::WebviewWindow, id: String) -> Result<(), String> {
     remove_file(window, id, true)
 }
@@ -676,12 +720,20 @@ pub fn workbench_show_browser(
             .iter()
             .find(|file| file.id == id)
             .ok_or("文件会话已关闭")?;
+        let location = if file.file["bufferId"].is_string() {
+            let path = file.file["bufferPath"]
+                .as_str()
+                .ok_or("此文件尚未保存到磁盘")?;
+            let (root_id, node) = window
+                .state::<local_files::LocalFiles>()
+                .authorized_document_origin(std::path::Path::new(path))?
+                .ok_or("请先在文件浏览中授权此文件所在的目录")?;
+            json!({ "rootId": root_id, "node": node })
+        } else {
+            json!({ "rootId": file.file["rootId"], "node": file.file["node"]["id"] })
+        };
         window
-            .emit_to(
-                "main",
-                "workbench:reveal-file",
-                json!({ "rootId": file.file["rootId"], "node": file.file["node"]["id"] }),
-            )
+            .emit_to("main", "workbench:reveal-file", location)
             .map_err(|e| e.to_string())?;
     }
     super::show_workbench(window.app_handle());
@@ -920,6 +972,27 @@ mod tests {
         assert_eq!(state.files[0].file["headingFragment"], "目标章节");
         state.open(file("a")).unwrap();
         assert!(state.files[0].file["headingFragment"].is_null());
+    }
+    #[test]
+    fn reorder_uses_file_id_and_drop_edge_while_retaining_selection() {
+        let mut state = Session::default();
+        for id in ["a", "b", "c", "d"] {
+            state.open(file(id)).unwrap();
+        }
+        assert!(!state.reorder("b", "c", false).unwrap());
+        assert!(state.reorder("b", "d", true).unwrap());
+        assert!(state.reorder("b", "a", false).unwrap());
+        assert!(state.reorder("a", "d", true).unwrap());
+        assert!(state.reorder("a", "missing", false).is_err());
+        assert_eq!(
+            state
+                .files
+                .iter()
+                .map(|file| file.id.as_str())
+                .collect::<Vec<_>>(),
+            ["b", "c", "d", "a"]
+        );
+        assert_eq!(state.current.as_deref(), Some("d"));
     }
     #[test]
     fn closing_and_capacity_do_not_admit_new_sessions() {

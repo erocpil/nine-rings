@@ -1,6 +1,11 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-23",
+    title: "Workbench Editor 标签操作",
+    changes: ["编辑器标签悬停显示完整文件名和路径。可拖动调整顺序，重新打开仍保留。右键可复制文件信息、在浏览器中定位以及关闭其它或右侧标签。"],
+  },
+  {
     date: "2026-11-22",
     title: "符号链接、批量重命名与 Workbench 会话修复",
     changes: ["File Workbench Editor 精简长标签，悬停或聚焦时显示关闭按钮。", "Nine Rings 和 File Workbench 在本地浏览用角标表示符号链接。可打开同一授权目录内的实际文件，失效或越界链接显示警示。", "双栏批量重命名支持纯文本或正则替换、大小写转换、编号补零和本机预设，预览标明已发现的名称冲突。", "Nine Rings 和 File Workbench 在保存原文件时复核权限，在另存文本或导出 HTML 时保护新出现的文件和外部修改。", "Workbench 未命名文档首次保存后以实际写出的内容为版本基准。编辑器标签只在会话记录写入成功后切换，草稿读取失败时仍可退出并保留会话。", "跨磁盘移动需要核对结果时，两款应用都会刷新来源和目标列表。"],

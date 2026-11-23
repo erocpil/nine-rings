@@ -304,6 +304,7 @@ fn main() {
             editor_window::workbench_editor_link_origin,
             editor_window::workbench_editor_state,
             editor_window::workbench_editor_select,
+            editor_window::workbench_editor_reorder,
             editor_window::workbench_editor_remove,
             editor_window::workbench_editor_saved,
             editor_window::workbench_editor_finish_close,

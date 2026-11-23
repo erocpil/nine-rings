@@ -2601,7 +2601,7 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     if (savedSession) { const saved = JSON.parse(savedSession); state.files = saved.files; state.current = saved.current; }
     const persistSession = () => localStorage.setItem("fixture-editor-session", JSON.stringify({ files: state.files, current: state.current }));
     const persist = () => { localStorage.setItem("fixture-editor-buffers", JSON.stringify(records)); persistSession(); };
-    const fixture = { state, sources, writes: [] as string[], relocations: [] as { revision?: string; reason?: string }[], finished: [] as unknown[], quit: 0, records, cancelSave: true, rejectSelection: false, rejectBufferRead: false, saves: [] as string[], assetReads: [] as string[], stats: [] as string[], bufferFiles: {} as Record<string, string> };
+    const fixture = { state, sources, writes: [] as string[], relocations: [] as { revision?: string; reason?: string }[], finished: [] as unknown[], revealed: [] as string[], quit: 0, records, cancelSave: true, rejectSelection: false, rejectBufferRead: false, saves: [] as string[], assetReads: [] as string[], stats: [] as string[], bufferFiles: {} as Record<string, string> };
     const emit = (event: string, payload: unknown = null) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload });
     const requestRelocation = (targetNode: string) => { state.relocation = { id: state.current, token: ++state.revision, targetNode }; emit("workbench:editor-changed"); };
     Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorRequestRelocation: requestRelocation, __editorClose: (quit = false) => { state.revision++; state.closing = { token: state.revision, quit }; emit("workbench:editor-changed"); } });
@@ -2670,6 +2670,14 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
           if (fixture.rejectSelection) throw new Error("标签清单写入失败");
           state.current = args.id; persistSession(); state.revision++; emit("workbench:editor-changed"); return;
         }
+        if (command === "workbench_editor_reorder") {
+          const source = state.files.findIndex(file => file.id === args.id), anchor = state.files.findIndex(file => file.id === args.anchor);
+          if (source < 0 || anchor < 0) throw new Error("文件标签已变化");
+          const [file] = state.files.splice(source, 1);
+          state.files.splice(anchor + Number(args.after) - Number(source < anchor), 0, file);
+          persistSession(); state.revision++; emit("workbench:editor-changed"); return;
+        }
+        if (command === "workbench_show_browser") { if (args.id) fixture.revealed.push(args.id); return; }
         if (command === "workbench_editor_remove") { state.files = state.files.filter(file => file.id !== args.id); state.current = state.files[0]?.id ?? ""; persistSession(); state.revision++; emit("workbench:editor-changed"); return; }
         if (command === "workbench_editor_confirm_file") { persistSession(); return; }
         if (command === "workbench_editor_finish_close") { fixture.finished.push(args); if (args.cancelled) { state.closing = null; state.revision++; emit("workbench:editor-changed"); } else { persistSession(); state.files = []; state.current = ""; state.closing = null; state.revision++; emit("workbench:editor-changed"); } return; }
@@ -4293,10 +4301,13 @@ test("编辑标签精简长名称，悬停和键盘聚焦显示关闭且宽度�
   const tab = tabs.getByRole("tab", { name: long, exact: true });
   const close = tabs.getByRole("button", { name: `关闭 ${long}`, exact: true });
   await expect(tab).toHaveText("甲乙丙丁戊己庚辛…");
-  await expect(tab).toHaveAttribute("title", `/root/${long}`);
+  await expect(tab).toHaveAttribute("title", `${long}\n/root/${long}`);
   await expect(close).toHaveCSS("opacity", "0");
   const before = (await tab.boundingBox())!.width;
   await tab.hover();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toHaveText(`${long}\n/root/${long}`);
+  expect(await tooltip.textContent()).toBe(`${long}\n/root/${long}`);
   await expect(close).toHaveCSS("opacity", "1");
   expect((await tab.boundingBox())!.width).toBe(before);
   await tab.click();
@@ -4315,6 +4326,55 @@ test("编辑标签精简长名称，悬停和键盘聚焦显示关闭且宽度�
   await expect(close).toHaveCSS("opacity", "1");
   await close.press("Enter");
   await expect(tab).toHaveCount(0);
+});
+
+test("编辑标签拖拽和菜单排序会持久保存，关闭其它标签保留未保存内容", async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "int alpha;", "beta.c": "int beta;", "gamma.c": "int gamma;" });
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: async (value: string) => { (window as any).__tabClipboard = value; } } });
+  });
+  const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
+  const tab = (name: string) => tabs.getByRole("tab", { name: new RegExp(`${name}$`) });
+  const menu = page.getByRole("menu", { name: "编辑文件标签菜单" });
+  const command = async (name: string, label: string) => {
+    await tab(name).click({ button: "right" });
+    await menu.getByRole("menuitem", { name: label, exact: true }).click();
+  };
+  await expect(tab("alpha.c")).toHaveAttribute("aria-selected", "true");
+  const source = (await tab("gamma.c").boundingBox())!, target = (await tab("alpha.c").boundingBox())!;
+  await page.mouse.move(source.x + 10, source.y + source.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + 12, target.y + target.height / 2, { steps: 12 });
+  await expect(tabs.locator('[data-editor-tab-id="/root/alpha.c"]')).toHaveAttribute("data-drop-edge", "before");
+  await page.mouse.up();
+  await expect(tabs.getByRole("tab")).toHaveText(["gamma.c", "alpha.c", "beta.c"]);
+  await expect(tab("alpha.c")).toHaveAttribute("aria-selected", "true");
+  await command("beta.c", "复制完整路径");
+  await expect.poll(() => page.evaluate(() => (window as any).__tabClipboard)).toBe("/root/beta.c");
+  await command("gamma.c", "在文件浏览中显示");
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.revealed)).toEqual(["/root/gamma.c"]);
+  await command("gamma.c", "向右移动标签");
+  await expect(tabs.getByRole("tab")).toHaveText(["alpha.c", "gamma.c", "beta.c"]);
+  await tab("gamma.c").press("Alt+ArrowRight");
+  await expect(tabs.getByRole("tab")).toHaveText(["alpha.c", "beta.c", "gamma.c"]);
+  await tab("gamma.c").press("Alt+ArrowLeft");
+  await expect(tabs.getByRole("tab")).toHaveText(["alpha.c", "gamma.c", "beta.c"]);
+  await page.reload();
+  await expect(tabs.getByRole("tab")).toHaveText(["alpha.c", "gamma.c", "beta.c"]);
+  await expect(tab("alpha.c")).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await page.locator(".cm-content:visible").fill("int changed;");
+  await expect(tab("alpha.c")).toHaveAccessibleName("未保存 alpha.c");
+  await command("beta.c", "关闭其它标签");
+  const leave = page.getByRole("dialog", { name: "未保存的文件编辑" });
+  await expect(leave).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(leave).toHaveCount(0);
+  await expect(tabs.getByRole("tab")).toHaveCount(3);
+  await expect(page.locator(".cm-content:visible")).toContainText("int changed;");
+  await command("alpha.c", "关闭右侧标签");
+  await expect(tabs.getByRole("tab")).toHaveCount(1);
+  await expect(tab("alpha.c")).toHaveAttribute("aria-selected", "true");
 });
 
 for (const rendered of [false, true]) for (const readonly of [false, true]) test(`独立Editor选区悬浮工具与右键高亮保留 rendered=${rendered} readonly=${readonly}`, async ({ page }) => {

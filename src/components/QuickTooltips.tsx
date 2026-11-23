@@ -36,7 +36,7 @@ export function QuickTooltips() {
     // File rows span all metadata columns. Anchor their path hint to the name
     // text (after the icon), while retaining the row as the hover owner.
     const name = hint.target.dataset.tooltipPath
-      ? hint.target.querySelector<HTMLElement>(".file-browser-name > span")
+      ? hint.target.querySelector<HTMLElement>(".file-browser-name-text")
       : null;
     const desiredLeft = name
       ? name.getBoundingClientRect().left
@@ -197,7 +197,7 @@ export function QuickTooltips() {
           ref={tooltipRef}
           id={id}
           role="tooltip"
-          className={`quick-tooltip${inDialog ? " quick-tooltip-in-dialog" : ""}${hint.target.dataset.tooltipPath ? " quick-tooltip-path" : ""}`}
+          className={`quick-tooltip${inDialog ? " quick-tooltip-in-dialog" : ""}${hint.target.dataset.tooltipPath ? " quick-tooltip-path" : ""}${hint.target.dataset.tooltipWide ? " quick-tooltip-wide" : ""}`}
           style={{
             left: hint.left,
             top: hint.top,

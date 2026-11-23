@@ -32,6 +32,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   const closeRefs = useRef(new Map<string, MutableRefObject<WorkbenchCloseRequest | null>>());
   const container = useRef<HTMLDivElement>(null);
   const closing = useRef<{ token: number; ids: string[]; index: number } | null>(null);
+  const tabClosing = useRef<{ id: string; cancel: () => void } | null>(null);
   useWorkbenchPalette(host.workspace.settings);
   const [quitHint, setQuitHint] = useState("");
   useEffect(() => {
@@ -113,6 +114,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   useEffect(() => {
     const request = state.closing;
     if (!request || closing.current) return;
+    if (tabClosing.current) { void port.finish(request.token, true).catch(report); return; }
     const chain = { token: request.token, ids: state.files.map(file => file.id), index: 0 };
     closing.current = chain;
     const next = () => {
@@ -133,7 +135,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.closing?.token, port]);
   const select = (id: string) => {
-    if (closing.current) return;
+    if (closing.current || tabClosing.current) return;
     // The native state publishes selection only after saving the session.
     void port.select(id).catch(report);
   };
@@ -174,17 +176,38 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
     } finally { linkInFlight.current = false; }
   };
   const createDocument = () => { if (!closing.current) void bufferDocumentPort.create().catch(report); };
-  const closeTab = (id: string) => {
-    if (closing.current) return;
-    const requestClose = () => closeRefs.current.get(id)?.current?.();
-    if (dirty[id] && current !== id) {
-      void port.select(id).then(() => { if (!closing.current) requestClose(); }, report);
-    } else requestClose();
+  const closeTabs = (ids: readonly string[]) => {
+    if (closing.current || tabClosing.current || !ids.length) return;
+    const job = { id: "", cancel: () => {} };
+    tabClosing.current = job;
+    const retained = current && !ids.includes(current) ? current : null;
+    void (async () => {
+      try {
+        let changedSelection = false;
+        for (const id of ids) {
+          job.id = id;
+          if (dirty[id]) { await port.select(id); changedSelection = true; }
+          const requestClose = closeRefs.current.get(id)?.current;
+          if (!requestClose) throw new Error("文件仍在加载，请稍后关闭标签");
+          const confirmed = await new Promise<boolean>(resolve => {
+            job.cancel = () => resolve(false);
+            requestClose(() => resolve(true));
+          });
+          if (!confirmed) return;
+          await port.remove(id);
+        }
+        if (retained && changedSelection) await port.select(retained);
+      } catch (cause) { report(cause); }
+      finally { tabClosing.current = null; }
+    })();
+  };
+  const reorderTab = (id: string, anchor: string, after: boolean) => {
+    if (!closing.current && !tabClosing.current) void port.reorder(id, anchor, after).catch(report);
   };
   return <main className="file-workbench-app workbench-editor-window">
     {quitHint && <div className="workbench-quit-overlay"><div className="workbench-quit-card" role="status"><kbd>⌘Q</kbd><strong>{quitHint}</strong><span>继续使用则无需操作</span></div></div>}
     {error && <WorkspaceDialog title="编辑器操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
-    <EditorFileTabs files={state.files} current={current} dirty={dirty} select={select} close={closeTab} discard={setDiscard} />
+    <EditorFileTabs files={state.files} current={current} dirty={dirty} select={select} close={id => closeTabs([id])} closeMany={closeTabs} discard={setDiscard} reorder={reorderTab} reveal={id => { void port.showBrowser(id).catch(report); }} report={report} />
     <div ref={container} className="file-workbench-content workbench-editor-sessions" />
     {state.files.map(item => {
       let closeRequest = closeRefs.current.get(item.id);
@@ -202,7 +225,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
           onLinkHistory={(direction, position) => { void traverseLinks(direction, position).catch(report); }}
           relocation={state.relocation?.id === item.id ? state.relocation : undefined}
           relocationReply={port.relocationReply}
-          navigationRequest={item.openRevision} active={current === item.id && !state.closing} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
+          navigationRequest={item.openRevision} active={current === item.id && !state.closing} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={() => { if (tabClosing.current?.id === item.id) tabClosing.current.cancel(); cancelClosing(); }} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
       </ParkedDocument>;
     })}
     {discard && <WorkspaceDialog title="删除本机编辑草稿" onClose={() => { if (!discarding) setDiscard(null); }}><p>删除后无法恢复此编辑文档的未保存内容，已经保存的磁盘文件不会删除。</p><button type="button" disabled={discarding} onClick={() => setDiscard(null)}>取消</button><button type="button" disabled={discarding} onClick={() => {

@@ -16,6 +16,7 @@ it("subscribes before the initial snapshot, ignores out-of-order reads and dispo
   let changed = () => {};
   const stop = vi.fn();
   const port: WorkbenchEditorPort = {
+    reorder: async () => {},
     read: () => {
       order.push("read");
       return new Promise((resolve) => reads.push(resolve));

@@ -9,6 +9,7 @@ export interface WorkbenchEditorPort {
   read(): Promise<WorkbenchEditorState>;
   listen(changed: () => void): Promise<() => void>;
   select(id: string): Promise<void>;
+  reorder(id: string, anchor: string, after: boolean): Promise<void>;
   followLink?(sourceId: string, rootId: string, node: string): Promise<string>;
   remove(id: string): Promise<void>;
   confirm(token: number, id: string): Promise<void>;
@@ -23,6 +24,7 @@ export const editorWindowPort: WorkbenchEditorPort = {
   read: () => invoke("workbench_editor_state"),
   listen: changed => listen("workbench:editor-changed", changed),
   select: id => invoke("workbench_editor_select", { id }),
+  reorder: (id, anchor, after) => invoke("workbench_editor_reorder", { id, anchor, after }),
   followLink: (sourceId, rootId, node) => invoke("workbench_follow_editor_link", { sourceId, rootId, node }),
   remove: id => invoke("workbench_editor_remove", { id }),
   confirm: (token, id) => invoke("workbench_editor_confirm_file", { token, id }),

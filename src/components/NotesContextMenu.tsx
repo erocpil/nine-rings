@@ -1,11 +1,11 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 export interface NotesMenuTarget { id: string; title: string; x: number; y: number; trigger: HTMLElement }
 export function NotesContextMenu({ target, close, actions, label = "随记菜单", ignoreTrigger = false }: {
   target: NotesMenuTarget;
   close: () => void;
-  actions: { label: string; run: () => void; disabled?: boolean; checked?: boolean }[];
+  actions: { label: string; run: () => void; disabled?: boolean; checked?: boolean; separator?: boolean; danger?: boolean }[];
   label?: string;
   ignoreTrigger?: boolean;
 }) {
@@ -48,6 +48,9 @@ export function NotesContextMenu({ target, close, actions, label = "随记菜单
         buttons[next]?.focus();
       }
     }}>
-    {actions.map(action => <button key={action.label} type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} className="doc-context-item" disabled={action.disabled} onClick={() => { close(); action.run(); }}>{action.checked !== undefined && <span aria-hidden="true">{action.checked ? "✓ " : "　"}</span>}{action.label}</button>)}
+    {actions.map(action => <Fragment key={action.label}>
+      {action.separator && <span role="separator" className="notes-context-separator" />}
+      <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} className={`doc-context-item${action.danger ? " doc-context-danger" : ""}`} disabled={action.disabled} onClick={() => { close(); action.run(); }}>{action.checked !== undefined && <span aria-hidden="true">{action.checked ? "✓ " : "　"}</span>}{action.label}</button>
+    </Fragment>)}
   </div>, document.body);
 }
