@@ -131,17 +131,25 @@ test("磁盘 Markdown 检测到外部变化后等待确认，载入反馈自动�
   await workspace.getByRole("button", { name: "渲染", exact: true }).click();
   const body = workspace.locator(".ProseMirror:visible");
   await expect(body).toContainText("Original paragraph");
+  const outline = workspace.getByRole("button", { name: "文档目录", exact: true });
+  if (await outline.getAttribute("data-pinned") !== "true") await outline.click();
+  const dock = workspace.getByRole("complementary", { name: "固定阅读面板" });
+  await expect(dock).toBeVisible();
   await page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("external.md").setText("# External revision\n\nParagraph changed on disk\n"));
   const load = page.getByRole("button", { name: "载入磁盘版本", exact: true });
   await expect(load).toBeVisible();
   const notice = workspace.getByRole("region", { name: "磁盘文件变更", exact: true });
-  for (const style of ["classic", "calm"]) {
+  for (const [style, side] of [["classic", "right"], ["calm", "left"]] as const) {
+    await page.evaluate(async value => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: value }), side);
+    await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
     await page.evaluate(value => { document.documentElement.dataset.interfaceStyle = value; }, style);
     await expect(notice).toHaveCSS("background-color", "rgb(38, 54, 77)");
     await expect.poll(() => notice.evaluate(element => {
       const header = element.closest(".local-file-view")!.querySelector(".document-render-header")!;
       return element.getBoundingClientRect().top - header.getBoundingClientRect().bottom;
     })).toBeGreaterThanOrEqual(0);
+    await expect.poll(async () => (await dock.boundingBox())!.y - (await notice.boundingBox())!.y - (await notice.boundingBox())!.height).toBeGreaterThanOrEqual(-1);
+    await load.click({ trial: true });
   }
   await page.setViewportSize({ width: 420, height: 820 });
   await expect.poll(() => notice.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
@@ -180,6 +188,11 @@ test("九环后台磁盘标签合并通知并仅载入选中的干净版本", as
   await replaceSource(source, "first local draft");
   await tree.getByRole("button", { name: "second.txt", exact: true }).click();
   await expect(source).toContainText("second original");
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  const first = page.getByRole("tab", { name: "first.txt", exact: true });
+  const second = page.getByRole("tab", { name: "second.txt", exact: true });
+  await expect(second).toHaveAttribute("aria-selected", "true");
+  const unchanged = await second.evaluate(element => getComputedStyle(element).backgroundColor);
   await page.evaluate(() => {
     const files = (window as any).__localWorkspaceFixture.nodes;
     files.get("first.txt").setText("first disk edit");
@@ -187,15 +200,19 @@ test("九环后台磁盘标签合并通知并仅载入选中的干净版本", as
     window.dispatchEvent(new Event("focus"));
   });
   await page.getByRole("button", { name: "查看变更（2）", exact: true }).click({ timeout: 12_000 });
+  await expect(first).toHaveCSS("background-color", "rgb(245, 216, 159)");
+  await expect(second).toHaveCSS("background-color", "rgb(245, 216, 159)");
   const list = page.getByRole("dialog", { name: "磁盘文件变更" });
   await expect(list.getByRole("checkbox", { name: /first.txt/ })).toBeDisabled();
   await expect(list.getByRole("checkbox", { name: /second.txt/ })).toBeChecked();
   await list.getByRole("button", { name: "载入所选磁盘版本（1）", exact: true }).click();
   await expect(source).toContainText("second disk edit");
+  await expect(second).toHaveCSS("background-color", unchanged);
   await expect(list.getByRole("checkbox", { name: /first.txt/ })).toBeVisible();
   await list.getByRole("button", { name: "稍后", exact: true }).click();
   await expect(page.getByRole("button", { name: "磁盘变更（1）" })).toBeVisible();
-  await tree.getByRole("button", { name: "first.txt", exact: true }).click();
+  await expect(first).toHaveCSS("background-color", "rgb(245, 216, 159)");
+  await first.click();
   await expect(source).toContainText("first local draft");
 });
 

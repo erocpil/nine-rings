@@ -497,6 +497,7 @@ export function FocusDocumentTabs({
             aria-selected={identity === activeLocalIdentity}
             aria-label={file.name}
             aria-description={hasDiskChange ? "磁盘版本有变更" : undefined}
+            data-disk-changed={hasDiskChange || undefined}
             className="focus-document-tab focus-document-tab-local"
             title={`${file.rootName}/${file.nodeId}`}
             data-tauri-drag-region="false"

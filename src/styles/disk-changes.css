@@ -75,6 +75,21 @@
   display: block;
   color: var(--text-secondary, inherit);
 }
+[data-disk-changed] {
+  --disk-change-tab-background: #f5d89f;
+  --disk-change-tab-text: #362507;
+  --disk-change-tab-marker: #8a5417;
+}
+.focus-document-tab-local[data-disk-changed],
+.focus-document-tab-local[data-disk-changed][aria-selected="true"],
+.focus-document-tab-local[data-disk-changed]:hover {
+  background: var(--disk-change-tab-background);
+  color: var(--disk-change-tab-text);
+  box-shadow: inset 0 2px var(--disk-change-tab-marker);
+}
+[data-disk-changed] .disk-change-badge {
+  color: var(--disk-change-tab-marker);
+}
 .disk-change-badge {
   flex: none;
   color: var(--accent, currentColor);

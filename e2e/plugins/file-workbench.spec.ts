@@ -2885,6 +2885,10 @@ test("独立编辑器汇总开着的文件，载入时复核版本并保留后�
   const openChanges = page.getByRole("button", { name: "查看变更（2）", exact: true });
   await expect(openChanges).toBeVisible({ timeout: 12_000 });
   await expect(tabs.getByRole("tab", { name: "未保存 beta.c", exact: true })).toHaveAccessibleDescription("磁盘版本有变更");
+  const alphaTabSurface = tabs.getByRole("tab", { name: "alpha.c", exact: true }).locator("..");
+  const betaTabSurface = tabs.getByRole("tab", { name: "未保存 beta.c", exact: true }).locator("..");
+  await expect(alphaTabSurface).toHaveCSS("background-color", "rgb(245, 216, 159)");
+  await expect(betaTabSurface).toHaveCSS("background-color", "rgb(245, 216, 159)");
   await page.getByRole("button", { name: "稍后", exact: true }).click();
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   const badge = page.getByRole("button", { name: "磁盘变更（2）", exact: true });
@@ -2899,6 +2903,8 @@ test("独立编辑器汇总开着的文件，载入时复核版本并保留后�
   await expect(content).toContainText("return 1");
   await apply.click();
   await expect(content).toContainText("return 5");
+  await expect(alphaTabSurface).not.toHaveCSS("background-color", "rgb(245, 216, 159)");
+  await expect(betaTabSurface).toHaveCSS("background-color", "rgb(245, 216, 159)");
   await expect(list.getByRole("checkbox", { name: /beta.c/ })).toBeDisabled();
   await list.getByRole("button", { name: "稍后", exact: true }).click();
   await tabs.getByRole("tab", { name: "未保存 beta.c", exact: true }).click();
@@ -2945,9 +2951,26 @@ test("独立编辑器轮询发现渲染正文冲突，保留编辑和磁盘副�
   await setupIndependentEditor(page, { "guide.md": "# Guide\n\nOriginal paragraph\n" }, "guide.md");
   const body = page.locator(".ProseMirror:visible");
   await expect(body).toContainText("Original paragraph");
+  const outline = page.getByRole("button", { name: "文档目录", exact: true });
+  if (await outline.getAttribute("data-pinned") !== "true") await outline.click();
+  const dock = page.getByRole("complementary", { name: "固定阅读面板" });
+  await expect(dock).toBeVisible();
   await page.evaluate(() => { (window as any).__editorFixture.sources["guide.md"] = "# Guide\n\nUpdated on disk before editing\n"; });
   const load = page.getByRole("button", { name: "载入磁盘版本", exact: true });
   await expect(load).toBeVisible({ timeout: 10_000 });
+  const notice = page.getByRole("region", { name: "磁盘文件变更" });
+  const expectDockBelowNotice = async () => {
+    await expect.poll(async () => {
+      const box = (await notice.boundingBox())!;
+      return (await dock.boundingBox())!.y - box.y - box.height;
+    }).toBeGreaterThanOrEqual(-1);
+  };
+  await expectDockBelowNotice();
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await expect(page.locator(".cm-content:visible")).toContainText("Original paragraph");
+  await expectDockBelowNotice();
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expectDockBelowNotice();
   await expect(body).toContainText("Original paragraph");
   await load.click();
   await expect(body).toContainText("Updated on disk before editing");

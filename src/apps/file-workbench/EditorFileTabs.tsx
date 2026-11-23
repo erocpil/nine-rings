@@ -91,7 +91,7 @@ export function EditorFileTabs({ files, current, dirty, changed, select, close, 
       {files.map((file, index) => {
         const hasDiskChange = changed.some(item => item.id === file.id);
         return <div className="workbench-editor-tab" key={file.id} data-editor-tab-id={file.id}
-          data-active={file.id === current || undefined} data-drop-edge={drop?.anchor === file.id ? (drop.after ? "after" : "before") : undefined}>
+          data-disk-changed={hasDiskChange || undefined} data-active={file.id === current || undefined} data-drop-edge={drop?.anchor === file.id ? (drop.after ? "after" : "before") : undefined}>
           <button role="tab" type="button" aria-selected={file.id === current} tabIndex={file.id === current ? 0 : -1}
             aria-description={hasDiskChange ? "磁盘版本有变更" : undefined}
             aria-label={`${dirty[file.id] ? "未保存 " : ""}${file.file.node.name}`}

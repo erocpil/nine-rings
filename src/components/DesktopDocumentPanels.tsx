@@ -77,29 +77,30 @@ export function DesktopDocumentPanels({
     if (!dock || !owner) return;
     const observed = new WeakSet<Element>();
     const titleSelector = ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title";
+    const noticeSelector = "[data-document-dock-chrome]";
+    const chromeSelector = `${titleSelector}, ${noticeSelector}`;
+    const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note") ?? owner;
     let dockTitle: HTMLElement | null = null;
     const measure = () => {
-      const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note") ?? owner;
       const title = dock.getClientRects().length
         ? visibleChromeElement(owner, titleSelector) ?? visibleChromeElement(chromeHost, titleSelector)
         : null;
-      // The title and dock share one boundary, even when the source title is a sibling.
+      // The title and any full-width notice sit above the fixed dock.
       if (dockTitle !== title) {
         dockTitle?.removeAttribute("data-document-dock-title");
         title?.setAttribute("data-document-dock-title", "");
         dockTitle = title;
       }
-      const top = title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
-      dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
+      const ownerTop = owner.getBoundingClientRect().top;
+      const notice = title ? visibleChromeElement(chromeHost, noticeSelector) : null;
+      const noticeBottom = notice ? notice.getBoundingClientRect().bottom + (parseFloat(getComputedStyle(notice).marginBlockEnd) || 0) : ownerTop;
+      const top = Math.max(title?.getBoundingClientRect().bottom ?? ownerTop, noticeBottom);
+      dock.style.top = `${Math.max(0, top - ownerTop)}px`;
     };
     const observer = new ResizeObserver(measure);
     observer.observe(owner);
     const bindChrome = () => {
-      for (const child of owner.querySelectorAll<HTMLElement>(titleSelector)) {
-        if (!observed.has(child)) { observed.add(child); observer.observe(child); }
-      }
-      const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note");
-      for (const child of chromeHost?.querySelectorAll<HTMLElement>(".local-file-titlebar, .vr-title") ?? []) {
+      for (const child of chromeHost.querySelectorAll<HTMLElement>(chromeSelector)) {
         if (!observed.has(child)) { observed.add(child); observer.observe(child); }
       }
       measure();
@@ -107,9 +108,9 @@ export function DesktopDocumentPanels({
     // Lazy/retained editors can mount their title after the dock. Resolve the
     // current title on every measurement instead of retaining a missing node.
     const mounted = new MutationObserver(records => {
-      if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(titleSelector) || node.querySelector(titleSelector))))) bindChrome();
+      if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(chromeSelector) || node.querySelector(chromeSelector))))) bindChrome();
     });
-    mounted.observe(owner, { childList: true, subtree: true });
+    mounted.observe(chromeHost, { childList: true, subtree: true });
     bindChrome();
     return () => {
       mounted.disconnect();

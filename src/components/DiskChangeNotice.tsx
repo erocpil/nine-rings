@@ -89,7 +89,7 @@ export function DiskChangeNotice({ store, active = true, activeId, target }: {
     <span role="status">{toast}</span>
     <button type="button" aria-label="关闭重新载入提示" onClick={clearToast}>×</button>
   </div>;
-  const banner = !!changes.length && <section className="disk-change-notice" data-expanded={expanded} aria-label="磁盘文件变更">
+  const banner = !!changes.length && <section className="disk-change-notice" data-document-dock-chrome data-expanded={expanded} aria-label="磁盘文件变更">
     {expanded ? <>
       <span role="status">{current ? `${current.name} 的磁盘版本已变化。${current.dirty ? "当前编辑已保留。" : ""}` : `${changes.length} 个打开的文件有磁盘变更。`}</span>
       {current && <>
