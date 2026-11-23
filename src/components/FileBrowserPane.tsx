@@ -2,7 +2,7 @@ import { useBrowserDisplay } from "../hooks/useBrowserDisplay";
 import { browserDateText, browserDisplayColumns } from "../lib/local-files/browser-display";
 import { FileBrowserDisplaySettings } from "./FileBrowserDisplaySettings";
 import { useBrowserModifiedWidth } from "../hooks/useBrowserModifiedWidth";
-import { isMacPlatform, isPrimaryShortcutModifier } from "../lib/shortcuts";
+import { isMacPlatform, isPrimaryShortcutModifier, SELECT_FOCUSED_CONTENT_EVENT } from "../lib/shortcuts";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { FileBrowserFileDetails } from "./FileBrowserFileDetails";
 import { browserTabAllows, type BrowserWorkspaceTab } from "../lib/local-files/browser-tabs";
@@ -280,6 +280,16 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     finally { if (pageBusy.current === controller) pageBusy.current = null; if (request.current === controller && !controller.signal.aborted) setPaging(false); }
   }, [next, autoFailed, rootId, node, pane.sort, pane.showHidden, query, provider]);
   useEffect(() => { if (visible && !loading && !paging && nodes.length && scroll + height >= nodes.length * ROW - ROW * 3) void more(); }, [visible, loading, paging, nodes.length, scroll, height, more, ROW]);
+  const selectAll = useCallback(() => {
+    if (loading || loadedKey.current !== key) return;
+    onChange(current => updateBrowserLocation(current, { selected: nodes.slice(0, 2000).map(item => item.id) }));
+  }, [key, loading, nodes, onChange]);
+  useLayoutEffect(() => {
+    const list = scrollRef.current;
+    if (!list) return;
+    list.addEventListener(SELECT_FOCUSED_CONTENT_EVENT, selectAll);
+    return () => list.removeEventListener(SELECT_FOCUSED_CONTENT_EVENT, selectAll);
+  }, [selectAll]);
   const chooseItem = (item: FileNode, toggle = false, range = false) => {
     const rangeAnchor = anchor.current ?? cursor.current ?? selected[selected.length - 1] ?? item.id;
     onChange(current => updateBrowserLocation(current, { selected: selectBrowserItems(browserLocation(current)?.selected ?? [], nodes.map(value => value.id), item.id, rangeAnchor, toggle, range).slice(0, 2000) }));
@@ -430,7 +440,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) { event.preventDefault(); event.stopPropagation(); const item = nodes.find(item => item.id === cursor.current); if (item) { const rect = document.getElementById(rowId(item.id))?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect(); openMenu(item, rect.left + 20, rect.top + 20); } return; }
       if (event.key === "Enter") { const item = nodes.find(value => value.id === (cursor.current ?? selected[selected.length - 1])); if (item) { event.preventDefault(); openItem(item); } }
       else if (event.key === "Backspace" && node) { event.preventDefault(); navigate(pieces.slice(0, -1).join("/")); }
-      else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") { event.preventDefault(); onChange(current => updateBrowserLocation(current, { selected: nodes.slice(0, 2000).map(item => item.id) })); }
+      else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") { event.preventDefault(); selectAll(); }
       else if (["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "PageUp"].includes(event.key)) {
         event.preventDefault(); event.stopPropagation();
         const current = nodes.findIndex(item => item.id === (cursor.current ?? selected[selected.length - 1]));

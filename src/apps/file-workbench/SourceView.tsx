@@ -10,7 +10,7 @@ import { TOOLBAR_PREFERENCES_ERROR } from "./toolbar-preferences";
 import { BufferSaveCancelled } from "./buffer-documents";
 import { MoreToolsButton } from "../../components/MoreToolsButton";
 import { useFocusEditorTools } from "../../stores/useFocusEditorTools";
-import { isPrimaryShortcutModifier } from "../../lib/shortcuts";
+import { isPrimaryShortcutModifier, SELECT_FOCUSED_CONTENT_EVENT } from "../../lib/shortcuts";
 import { isTauriRuntime } from "../../lib/runtime";
 import { WorkbenchEditorSettingsDialog } from "./EditorSettings";
 import { useWorkbenchTypography, workbenchTypographyVariables } from "./typography";
@@ -46,6 +46,8 @@ import type { BrowserDirectoryProvider } from "../../lib/local-files/browser-con
 import type { WorkbenchCloseDecision, WorkbenchCloseRequest } from "./native-lifecycle";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useMemo, type MutableRefObject, type ReactNode } from "react";
 import type { EditorState } from "@codemirror/state";
+import { selectAll as selectCodeMirrorDocument } from "@codemirror/commands";
+import { EditorView } from "@codemirror/view";
 import { DocumentSourceSurface } from "../../components/DocumentSourceSurface";
 import { DocumentTitleBar, DocumentAccessToggle } from "../../components/DocumentChrome";
 import { DocumentActiveBoundary } from "../../components/RetainedDocument";
@@ -155,7 +157,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     renderedEditor.current = editor; positionRef.current.onRenderedReady(editor);
     if (editor && reloadPosition.current) requestAnimationFrame(restoreReloadPosition);
     if (editor && activeCurrent.current && renderMode.current && !document.querySelector("dialog[open]")) {
-      if (readonlyCurrent.current) previewRoot.current?.focus({ preventScroll: true });
+      if (readonlyCurrent.current) editor.view.dom.focus({ preventScroll: true });
       else requestAnimationFrame(() => { if (activeCurrent.current && renderMode.current && renderedEditor.current === editor && !editor.isDestroyed && !document.querySelector("dialog[open]")) editor.view.focus(); });
     }
   }, [restoreReloadPosition]);
@@ -172,6 +174,28 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     const offset = scroll?.isConnected ? { top: scroll.scrollTop, left: scroll.scrollLeft } : parkedScroll.current.source;
     return { rendered: false, from: selection?.anchor ?? 0, to: selection?.head ?? 0, top: offset?.top ?? 0, left: offset?.left ?? 0 };
   }, [handle, renderedScroller]);
+  useEffect(() => {
+    const root = previewRoot.current;
+    if (!root || !active) return;
+    const selectAll = (event: Event) => {
+      if (!(event.target instanceof HTMLElement)) return;
+      const target = event.target;
+      const source = target.closest<HTMLElement>(".cm-content");
+      const view = source ? EditorView.findFromDOM(source) : null;
+      if (view) {
+        view.focus();
+        selectCodeMirrorDocument(view);
+      } else if (renderMode.current) {
+        const editor = renderedEditor.current;
+        if (!editor || editor.isDestroyed || !editor.view.dom.contains(target)) return;
+        editor.view.focus();
+        editor.commands.selectAll();
+        if (!editor.isEditable) root.ownerDocument.getSelection()?.selectAllChildren(editor.view.dom);
+      }
+    };
+    root.addEventListener(SELECT_FOCUSED_CONTENT_EVENT, selectAll);
+    return () => root.removeEventListener(SELECT_FOCUSED_CONTENT_EVENT, selectAll);
+  }, [active]);
   const current = useCallback(() => { renderedFlush.current?.flush(); return sourceRef.current; }, []);
   const changePreviewMode = (value: boolean) => {
     if (value === renderMode.current) return;

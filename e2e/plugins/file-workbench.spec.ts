@@ -566,6 +566,36 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
   expect(await page.evaluate(() => (window as any).__workbenchOps.calls.length)).toBe(4);
 });
 
+test("工作台全选只作用于焦点所在的文件栏或文本框", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+  const right = browser.getByRole("region", { name: "右侧目录", exact: true });
+  const list = left.getByRole("listbox", { name: "文件列表" });
+  await expect(list.getByRole("option", { name: /alpha.c/ })).toBeVisible();
+  const root = await left.getByRole("combobox", { name: "选择授权目录" }).inputValue();
+  await right.getByRole("combobox", { name: "选择授权目录" }).selectOption(root);
+  const rightList = right.getByRole("listbox", { name: "文件列表" });
+  const rightSelection = rightList.getByRole("option", { selected: true });
+  await rightList.getByRole("option", { name: /alpha.c/ }).click();
+  await list.press("ControlOrMeta+a");
+  await expect(list.getByRole("option", { selected: true })).toHaveCount(await list.getByRole("option").count());
+  await expect(rightSelection).toHaveCount(1);
+  await expect(rightSelection).toHaveAccessibleName(/alpha.c/);
+  await list.press("ControlOrMeta+l");
+  const address = left.getByRole("textbox", { name: "根内相对路径" });
+  await address.fill("directory text");
+  await address.press("ControlOrMeta+a");
+  await expect.poll(() => address.evaluate((element: HTMLInputElement) => [element.selectionStart, element.selectionEnd])).toEqual([0, 14]);
+  await address.press("Escape");
+  const toolbarButton = left.getByRole("button", { name: "添加授权目录", exact: true });
+  await toolbarButton.focus();
+  await page.evaluate(() => document.getSelection()?.removeAllRanges());
+  await page.keyboard.press("ControlOrMeta+a");
+  expect(await page.evaluate(() => document.getSelection()?.toString())).toBe("");
+});
+
 test("工作台地址和过滤快捷键只作用于当前栏，保留可见过滤条件并正确显示空文件", async ({ page }) => {
   const fixture = await mkdtemp(join(tmpdir(), "nr-workbench-filter-"));
   try {
@@ -2739,6 +2769,44 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     };
   }, { sources, initial, images, macMenu });
   await page.goto("/file-workbench.html");
+}
+
+test("编辑器全选快捷键和原生菜单遵循正文及工具栏焦点", async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "int alpha;\nint beta;" });
+  const source = page.locator(".cm-content:visible");
+  await expect(source).toContainText("int alpha;");
+  const length = (await sourceInfo(source)).value.length;
+  await selectSource(source, 3);
+  await page.keyboard.press("ControlOrMeta+a");
+  await expect.poll(() => sourceInfo(source)).toMatchObject({ selectionStart: 0, selectionEnd: length });
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await selectSource(source, 6);
+  await page.evaluate(() => (window as any).__editorEmit("workbench:select-all"));
+  await expect.poll(() => sourceInfo(source)).toMatchObject({ selectionStart: 0, selectionEnd: length });
+
+  await selectSource(source, 5);
+  await page.getByRole("button", { name: "新建文件", exact: true }).first().focus();
+  await page.evaluate(() => { document.getSelection()?.removeAllRanges(); (window as any).__editorEmit("workbench:select-all"); });
+  await expect.poll(() => sourceInfo(source)).toMatchObject({ selectionStart: 5, selectionEnd: 5 });
+  expect(await page.evaluate(() => document.getSelection()?.toString())).toBe("");
+});
+
+for (const mode of ["只读", "可编辑"]) {
+  test(`${mode} Markdown 的全选范围是当前渲染正文`, async ({ page }) => {
+    await setupIndependentEditor(page, { "guide.md": "# Example title\n\nReadable paragraph" }, "guide.md");
+    const body = page.locator(".ProseMirror:visible");
+    await expect(body).toHaveAttribute("contenteditable", "false");
+    if (mode === "可编辑") {
+      await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+      await expect(body).toHaveAttribute("contenteditable", "true");
+    }
+    await body.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await expect.poll(() => body.evaluate(body => {
+      const range = document.getSelection();
+      return { inside: body.contains(range?.anchorNode ?? null) && body.contains(range?.focusNode ?? null), selected: range?.toString() };
+    })).toMatchObject({ inside: true, selected: expect.stringMatching(/Example title[\s\S]*Readable paragraph/) });
+  });
 }
 
 test("macOS Workbench 编辑器菜单跟随前台视图和焦点，并执行现有源码命令", async ({ page }) => {

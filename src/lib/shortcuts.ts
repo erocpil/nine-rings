@@ -1,4 +1,5 @@
 // ── App 级快捷键：纯函数（无副作用，可独立单测）──
+export const SELECT_FOCUSED_CONTENT_EVENT = "nr:select-focused-content";
 
 /** 最小键盘事件接口，供纯函数与测试复用（不依赖 DOM） */
 export interface ShortcutKeyEvent {

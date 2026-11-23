@@ -108,7 +108,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
     const frame = requestAnimationFrame(() => {
       if (document.querySelector("dialog[open], [role=dialog]")) return;
       const root = container.current?.querySelector<HTMLElement>(".workbench-source-view");
-      const field = root && Array.from(root.querySelectorAll<HTMLElement>(".cm-content, .ProseMirror[contenteditable=true]")).find(element => element.getClientRects().length > 0);
+      const field = root && Array.from(root.querySelectorAll<HTMLElement>(".cm-content, .ProseMirror")).find(element => element.getClientRects().length > 0);
       (field || root)?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);

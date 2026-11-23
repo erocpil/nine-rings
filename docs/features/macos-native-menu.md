@@ -84,3 +84,5 @@ Go → Document Lists 中的 Recent Documents、Favorites 和 Modified Today 默
 浏览器模拟不能证明 macOS 顶部菜单的实际位置、系统快捷键截获或 Cocoa 焦点通知；发布前需要在重新构建的 macOS 应用中做原生菜单冒烟验证，特别是设置输入框、打印预览、退出确认及专注模式。
 
 文档文件格式的持久化、兼容和语法加载边界见 [文档文件格式与源码语法](./document-source-languages.md)。
+
+File Workbench 的 Edit → Select All 与 ⌘A 按焦点运行。文件列表全选当前栏，编辑器全选当前正文，文本框全选本框的文字。工具栏和窗口空白处保留当前选区。

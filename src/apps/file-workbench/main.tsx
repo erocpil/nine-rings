@@ -26,6 +26,7 @@ import type { BrowserFileOpen } from "../../lib/local-files/browser-contract";
 import { WorkspaceDialog } from "../../components/WorkspaceDialog";
 import type { LocalFileDraft } from "../../lib/local-files/recovery";
 import { exportLocalSource } from "../../lib/local-files/source-download";
+import { isPrimaryShortcutModifier, SELECT_FOCUSED_CONTENT_EVENT } from "../../lib/shortcuts";
 import { isTauriRuntime } from "../../lib/runtime";
 import { installWorkbenchClose, type WorkbenchCloseRequest } from "./native-lifecycle";
 import { createWorkbenchHost } from "./host";
@@ -220,9 +221,32 @@ function Workbench() {
     {draftsOpen && <WorkspaceDialog title="恢复草稿" onClose={() => { setDraftsOpen(false); setDraftToDelete(null); }}>{draftError && <p role="alert">{draftError}</p>}{nativeRole === "browser" && <p><button type="button" onClick={() => { void reopenBufferDocuments().then(count => { if (count) setDraftsOpen(false); else setDraftError("没有已关闭的编辑草稿；仍打开的文件会在启动时恢复。"); }).catch(cause => setDraftError(String(cause))); }}>恢复已关闭的编辑草稿</button> 主动关闭的未命名内容不会自动重新打开，可在这里恢复后保存或删除。</p>}<p>草稿独立保存在本机。重新授权会生成新的目录身份，请下载草稿，再核对路径后手动恢复；不会自动覆盖重新授权的文件。最多保留 5 份草稿，不自动删除；满额时请先下载并处理旧草稿。</p>{!drafts.length && <p>没有未保存草稿。</p>}{drafts.map(draft => <article key={draft.identity}><strong>{draft.identity.slice(draft.identity.indexOf(":") + 1)}</strong><time>{new Date(draft.savedAt).toLocaleString()}</time><button type="button" onClick={() => { void exportLocalSource(draft.identity.split("/").pop()!.split(":").pop()!, draft.source, draft, host.source.saveCopy).catch(cause => setDraftError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => setDraftToDelete(draft.identity)}>删除草稿</button>{draftToDelete === draft.identity && <div><p>确认删除这份恢复草稿？请先核对或下载其内容。</p><button type="button" onClick={() => { void host.source.drafts.remove(draft.identity).then(() => setDraftToDelete(null)).catch(cause => setDraftError(String(cause))); }}>确认删除草稿</button><button type="button" onClick={() => setDraftToDelete(null)}>取消</button></div>}<pre>{draft.source.slice(0, 2000)}{draft.source.length > 2000 ? "…" : ""}</pre></article>)}</WorkspaceDialog>}
   </main>;
 }
+function selectFocusedContent() {
+  const focused = document.activeElement;
+  if (!(focused instanceof HTMLElement) || focused.closest("[inert], [hidden]")) return;
+  if (focused instanceof HTMLTextAreaElement ||
+      (focused instanceof HTMLInputElement && ["text", "search", "password", "email", "url", "tel", "number"].includes(focused.type))) {
+    focused.select();
+    return;
+  }
+  focused.dispatchEvent(new Event(SELECT_FOCUSED_CONTENT_EVENT, { bubbles: true }));
+}
+
+function handleSelectAll(event: KeyboardEvent) {
+  if (event.defaultPrevented || event.isComposing || event.shiftKey || event.altKey ||
+      event.key.toLowerCase() !== "a" || !isPrimaryShortcutModifier(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  selectFocusedContent();
+}
+window.addEventListener("keydown", handleSelectAll, true);
+
 async function bootstrap() {
   if (isTauriRuntime()) {
     try { nativeRole = await workbenchWindowRole(); } catch (cause) { console.error("Editor window capability unavailable", cause); }
+    const { listen } = await import("@tauri-apps/api/event");
+    try { removeNativeFileEvents.push(await listen("workbench:select-all", selectFocusedContent)); }
+    catch (cause) { console.error("Select All menu unavailable", cause); }
     if (nativeRole === "editor") {
       const { WorkbenchEditorWindow } = await import("./EditorWindow");
       createRoot(document.getElementById("root")!).render(<ErrorBoundary><QuickTooltips /><SelectionHoverToolbar /><WorkbenchEditorWindow host={host} /></ErrorBoundary>);
@@ -232,7 +256,6 @@ async function bootstrap() {
       }
       return;
     }
-    const { listen } = await import("@tauri-apps/api/event");
     if (nativeRole === "browser") {
       removeNativeFileEvents.push(await listen("workbench:new-file", () => { void bufferDocumentPort.create().catch(cause => nativeError?.(cause)); }));
       const applyPresence = (value: WorkbenchEditorPresence) => {

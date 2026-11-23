@@ -7,6 +7,7 @@ use tauri::{
 
 pub const NEW_FILE: &str = "workbench.new-file";
 pub const CLOSE_FILE: &str = "workbench.close-file";
+const SELECT_ALL: &str = "workbench.select-all";
 pub const TOGGLE_HIDDEN: &str = "workbench.hidden-files";
 pub struct ViewMenu {
     pub hidden: CheckMenuItem<tauri::Wry>,
@@ -197,6 +198,21 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
             _ => None,
         })
     };
+    if let Some(edit) = existing_submenu("Edit") {
+        for (index, item) in edit.items()?.iter().enumerate() {
+            if let MenuItemKind::Predefined(item) = item {
+                if item.text()?.replace('&', "") == "Select All" {
+                    let select_all =
+                        tauri::menu::MenuItemBuilder::with_id(SELECT_ALL, "Select All")
+                            .accelerator("CmdOrCtrl+A")
+                            .build(app)?;
+                    edit.remove_at(index)?;
+                    edit.insert(&select_all, index)?;
+                    break;
+                }
+            }
+        }
+    }
     let view = if let Some(view) = existing_submenu("View") {
         view.insert(&tauri::menu::PredefinedMenuItem::separator(app)?, 0)?;
         view.insert(&hidden, 0)?;
@@ -253,6 +269,17 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
                 let _ = app.emit_to(window.label(), "workbench:editor-menu", id);
             }
             return;
+        }
+        if event.id().as_ref() == SELECT_ALL {
+            let target = super::editor_window::window(app)
+                .filter(|window| window.is_focused().unwrap_or(false))
+                .or_else(|| {
+                    app.get_webview_window("main")
+                        .filter(|window| window.is_focused().unwrap_or(false))
+                });
+            if let Some(window) = target {
+                let _ = app.emit_to(window.label(), "workbench:select-all", ());
+            }
         }
         if event.id().as_ref() == NEW_FILE {
             let focused = super::editor_window::window(app)
