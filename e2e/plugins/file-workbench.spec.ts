@@ -1,8 +1,9 @@
 import { dragDockPanel, expectNarrowDocumentDock } from "../helpers/document-dock";
 import { measureDocumentRail } from "../helpers/document";
 import { expectFoldContextSubmenu } from "../helpers/context-submenu";
+import { settingsBackdropFilter } from "../helpers/settings";
 import { replaceSource, sourceInfo, selectDocumentLanguage, selectSource } from "../helpers/source-editor";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1259,6 +1260,26 @@ test("固定目录标签经提醒后可关闭最后一个，右键不选中文�
   await expect(left.getByRole("option", { name: /alpha.c/ })).toBeVisible();
 });
 
+test("目录标签可从右栏移动到左栏，并沿用原浏览历史", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const right = page.getByRole("region", { name: "右侧目录", exact: true });
+  await expect(left.getByRole("option", { name: /^alpha.c/ })).toBeVisible();
+  const root = await left.getByRole("combobox", { name: "选择授权目录" }).inputValue();
+  await right.getByRole("combobox", { name: "选择授权目录" }).selectOption(root);
+  await right.getByRole("option", { name: /^sub/ }).dblclick();
+  await right.getByRole("tab", { name: "sub", exact: true }).click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "目录标签菜单" });
+  await expect(menu.getByRole("menuitem", { name: "向左移动标签", exact: true })).toHaveCount(0);
+  await menu.getByRole("menuitem", { name: "移动到另一侧", exact: true }).click();
+  await expect(right.getByRole("tab", { name: "目录", exact: true })).toBeVisible();
+  await expect(left.getByRole("tab", { name: "sub", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(left.getByRole("option", { name: /^guide.md/ })).toBeVisible();
+  await left.getByRole("button", { name: "后退目录", exact: true }).click();
+  await expect(left.getByRole("option", { name: /^alpha.c/ })).toBeVisible();
+});
+
 test("大量文件删除后刷新夹紧滚动，剩余条目完整显示并可继续键盘导航", async ({ page }) => {
   await page.addInitScript(() => {
     let callback = 1;
@@ -1590,7 +1611,9 @@ test("文件拖到工具后冻结来源多选并预览命令，确认前不执�
 
 test("工具单击无参数直接启动，右键传文件并支持复制排列分隔和删除", async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem("file-workbench:custom-tools-v1", JSON.stringify([{ id: "edit", name: "外部编辑", command: "editor", arguments: "--new-window", hint: "打开文件", icon: { kind: "preset", value: "code" } }]));
+    if (localStorage.getItem("file-workbench:custom-tools-v1") === null) {
+      localStorage.setItem("file-workbench:custom-tools-v1", JSON.stringify([{ id: "edit", name: "外部编辑", command: "editor", arguments: "--new-window", hint: "打开文件", icon: { kind: "preset", value: "code" } }]));
+    }
     let id = 1;
     const state = { plans: [] as any[], runs: [] as any[] };
     (window as any).__toolDrop = state;
@@ -1652,6 +1675,35 @@ test("工具单击无参数直接启动，右键传文件并支持复制排列�
   await tool.click({ button: "right" });
   await page.getByRole("menuitem", { name: "在此前插入分隔符", exact: true }).click();
   const separator = page.getByRole("separator", { name: "分隔符", exact: true });
+  const order = () => page.getByRole("group", { name: "工作台工具" }).locator("[data-workbench-tool-id]").evaluateAll(items => items.map(item => item.getAttribute("aria-label")));
+  await expect.poll(order).toEqual(["外部编辑 副本", "分隔符", "外部编辑"]);
+  const arm = async (item: typeof tool) => {
+    await item.click({ button: "right" });
+    await page.getByRole("menuitem", { name: "拖动调整位置", exact: true }).click();
+    await expect(item).toHaveAttribute("data-tool-moving", "true");
+  };
+  const dragBefore = async (item: typeof tool, target: typeof tool) => {
+    const from = (await item.boundingBox())!, to = (await target.boundingBox())!;
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + 3, to.y + to.height / 2, { steps: 10 });
+    await expect(target).toHaveAttribute("data-tool-insertion", "before");
+    await page.mouse.up();
+    await expect(page.getByRole("button", { name: "取消移动工具", exact: true })).toHaveCount(0);
+  };
+  await arm(tool);
+  await dragBefore(tool, copy);
+  await expect.poll(order).toEqual(["外部编辑", "外部编辑 副本", "分隔符"]);
+  await arm(separator);
+  await dragBefore(separator, tool);
+  await expect.poll(order).toEqual(["分隔符", "外部编辑", "外部编辑 副本"]);
+  await arm(copy);
+  await page.keyboard.press("Escape");
+  await expect(copy).not.toHaveAttribute("data-tool-moving");
+  await expect.poll(order).toEqual(["分隔符", "外部编辑", "外部编辑 副本"]);
+  expect(await page.evaluate(() => (window as any).__toolDrop.runs.length)).toBe(3);
+  await page.reload();
+  await expect.poll(order).toEqual(["分隔符", "外部编辑", "外部编辑 副本"]);
   await separator.click({ button: "right" });
   await expect(page.getByRole("menuitem", { name: "打开应用", exact: true })).toHaveCount(0);
   await page.getByRole("menuitem", { name: "删除分隔符", exact: true }).click();
@@ -4134,6 +4186,83 @@ async function openWorkbenchEditorSettings(page: Page) {
   await expect(page.getByRole("button", { name: "配色", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "编辑器设置", exact: true }).click();
   return page.getByRole("dialog", { name: "编辑器设置", exact: true });
+}
+
+async function expectSettingsBackgroundPreview(page: Page, dialog: Locator, checkBlur = false) {
+  const overlay = page.locator(".settings-preview-backdrop");
+  const panel = overlay.locator(":scope > :is(.workspace-dialog, .editor-appearance-panel)");
+  await expect(dialog).toBeVisible();
+  const bounds = (await panel.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(bounds.x).toBeGreaterThan(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height + 1);
+  expect(await panel.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  const edge = { x: Math.max(1, bounds.x / 2), y: viewport.height / 2 };
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
+  await page.mouse.click(edge.x, edge.y);
+  await expect(dialog).toBeVisible();
+  await page.mouse.move(edge.x, edge.y);
+  await page.mouse.down();
+  await expect(overlay).toHaveCSS("opacity", "0");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("none");
+  await page.mouse.move(viewport.width / 2, viewport.height / 2);
+  await expect(overlay).toHaveCSS("opacity", "0");
+  if (checkBlur) {
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await expect(overlay).toHaveCSS("opacity", "1");
+  }
+  await page.mouse.up();
+  await expect(overlay).toHaveCSS("opacity", "1");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
+  await expect(dialog).toBeVisible();
+}
+
+for (const { width, palette } of [{ width: 1280, palette: "light" }, { width: 390, palette: "mono-aware" }]) {
+  test(`Workbench 各设置弹层可按住背景预览，${width}px ${palette}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.addInitScript(palette => localStorage.setItem("file-workbench:palette", palette), palette);
+    await page.goto("/file-workbench.html");
+    await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+    const left = page.getByRole("region", { name: "左侧目录", exact: true });
+    await expect(left.getByRole("option", { name: /^alpha.c/ })).toBeVisible();
+    for (const [trigger, title] of [["文件列表展示", "文件列表展示"], ["文件浏览快捷键", "文件浏览快捷键"], ["添加工具", "工具栏工具"]]) {
+      await page.getByRole("button", { name: trigger, exact: true }).first().click();
+      const dialog = page.getByRole("dialog", { name: title, exact: true });
+      await expectSettingsBackgroundPreview(page, dialog);
+      if (title === "工具栏工具") {
+        const body = (await dialog.locator(".workbench-tool-config").boundingBox())!;
+        const save = dialog.getByRole("button", { name: "保存工具", exact: true });
+        await expect(save).toBeInViewport();
+        expect((await save.boundingBox())!.y).toBeGreaterThanOrEqual(body.y + body.height);
+      }
+      await dialog.getByRole("button", { name: `关闭${title}`, exact: true }).click();
+    }
+  });
+
+  test(`Editor 各设置弹层可预览背景并保留草稿，${width}px ${palette}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.addInitScript(palette => localStorage.setItem("file-workbench:palette", palette), palette);
+    await setupIndependentEditor(page);
+    const settings = await openWorkbenchEditorSettings(page);
+    await expectSettingsBackgroundPreview(page, settings, true);
+    await settings.getByRole("button", { name: /打开排版设置/ }).click();
+    const appearance = page.getByRole("dialog", { name: "排版设置", exact: true });
+    const size = appearance.getByRole("combobox", { name: "H1 字号", exact: true });
+    await size.selectOption("40");
+    await expectSettingsBackgroundPreview(page, appearance);
+    await expect(size).toHaveValue("40");
+    await appearance.getByRole("button", { name: "关闭编辑器排版", exact: true }).click();
+    await settings.getByRole("button", { name: "关闭编辑器设置", exact: true }).click();
+    await page.getByRole("button", { name: "代码格式风格", exact: true }).click();
+    await page.getByRole("menuitemcheckbox", { name: "自定义 .clang-format", exact: true }).click();
+    const format = page.getByRole("dialog", { name: "代码格式配置", exact: true });
+    const draft = format.getByRole("textbox", { name: ".clang-format 配置", exact: true });
+    await draft.fill("BasedOnStyle: LLVM");
+    await expectSettingsBackgroundPreview(page, format);
+    await expect(draft).toHaveValue("BasedOnStyle: LLVM");
+    await format.getByRole("button", { name: "关闭代码格式配置", exact: true }).click();
+  });
 }
 
 for (const palette of ["light", "calm"]) test(`编辑器排版独立保存并同步源码和渲染正文 ${palette}`, async ({ page }) => {

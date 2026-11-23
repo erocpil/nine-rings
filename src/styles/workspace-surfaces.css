@@ -174,7 +174,8 @@
 }
 
 /* Keep the backdrop intercepting input while the live workspace is revealed. */
-.settings-overlay.settings-peeking { opacity: 0 !important; }
+.settings-overlay.settings-peeking,
+.settings-preview-backdrop.settings-peeking { opacity: 0 !important; }
 
 /* Share one blur value across settings and every enlarged block. Keep the
    literal filter: older WebKit resolves blur(var(...)) to none. */
@@ -192,6 +193,22 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .settings-overlay:not(.settings-overlay-mobile) { transition: none; }
+}
+
+.workspace-dialog-backdrop.settings-preview-backdrop {
+  align-items: center;
+}
+.settings-preview-backdrop > .workspace-dialog > .workspace-dialog-heading {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  flex-shrink: 0;
+  background: var(--surface);
+}
+.settings-preview-backdrop .workspace-dialog-heading .btn-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
 }
 
 .dialog-overlay {

@@ -2,10 +2,9 @@ import { createPortal } from "react-dom";
 import { isMacPlatform } from "../../lib/shortcuts";
 import { FileBrowserContextMenu, type FileBrowserMenuAction } from "../../components/FileBrowserContextMenu";
 import type { NotesMenuTarget } from "../../components/NotesContextMenu";
-import { useContext } from "react";
 import { FileBrowserDragContext } from "../../components/FileBrowserHost";
 import { BROWSER_DRAG_TYPE } from "../../lib/local-files/browser-drag";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { WorkspaceDialog } from "../../components/WorkspaceDialog";
 import { ToolbarIcon, TOOLBAR_ICON_NAMES } from "../../components/ToolbarIcon";
 import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspace-contract";
@@ -22,10 +21,17 @@ function ToolIcon({ tool }: { tool: WorkbenchTool }) {
   return tool.icon.kind === "image" && tool.icon.value ? <img src={tool.icon.value} alt="" /> : tool.icon.kind === "unicode" ? <span aria-hidden="true">{tool.icon.value}</span> : <ToolbarIcon name={TOOLBAR_ICON_NAMES.find(name => name === tool.icon.value) ?? "plus"} />;
 }
 const blank = (): WorkbenchTool => ({ id: crypto.randomUUID(), name: "", command: "", arguments: "", hint: "", icon: { kind: "preset", value: "plus" } });
+type ToolDrop = { id: string; after: boolean };
+
 export function CustomTools({ settings, context, onRun, onShowResult, hasResult, tools, onToolsChange }: { settings: BrowserSettingsStore; context: BrowserToolContext | null; onRun: (tool: WorkbenchTool, context: BrowserToolContext | null, direct?: boolean) => void; onShowResult: () => void; hasResult: boolean; tools: WorkbenchTool[]; onToolsChange: (tools: WorkbenchTool[]) => void }) {
   const [menu, setMenu] = useState<NotesMenuTarget | null>(null);
   const dragging = useContext(FileBrowserDragContext);
   const [dropTool, setDropTool] = useState<string | null>(null);
+  const [movingTool, setMovingTool] = useState<string | null>(null);
+  const [insertion, setInsertion] = useState<ToolDrop | null>(null);
+  const pointer = useRef<{ id: number; x: number; y: number }>();
+  const suppressClick = useRef(false);
+  const formId = useId();
   const [open, setOpen] = useState(false), [draft, setDraft] = useState(blank), [error, setError] = useState(""), [notice, setNotice] = useState(""), [category, setCategory] = useState("文件与目录");
 
   const imageReader = useRef<FileReader | null>(null);
@@ -35,9 +41,74 @@ export function CustomTools({ settings, context, onRun, onShowResult, hasResult,
   const message = (text: string) => { clearTimeout(noticeTimer.current); setNotice(text); noticeTimer.current = setTimeout(() => setNotice(""), 5000); };
   const change = (value: Partial<WorkbenchTool>) => setDraft(current => ({ ...current, ...value }));
   const persist = (next: WorkbenchTool[]) => { try { settings.setItem(TOOLS_KEY, serializeWorkbenchTools(next)); onToolsChange(next); setError(""); return true; } catch (cause) { setError(`无法保存工具：${String(cause)}`); message(`无法保存工具：${String(cause)}`); return false; } };
-  const configure = (tool?: WorkbenchTool) => { imageReader.current?.abort(); setDraft(tool ? { ...tool, icon: { ...tool.icon } } : blank()); setError(""); setOpen(true); };
-  const showMenu = (event: React.MouseEvent<HTMLElement>, tool: WorkbenchTool) => { event.preventDefault(); event.stopPropagation(); setMenu({ id: tool.id, title: tool.name, x: event.clientX, y: event.clientY, trigger: event.currentTarget }); };
+  const configure = (tool?: WorkbenchTool) => { cancelMove(); imageReader.current?.abort(); setDraft(tool ? { ...tool, icon: { ...tool.icon } } : blank()); setError(""); setOpen(true); };
+  const showMenu = (event: React.MouseEvent<HTMLElement>, tool: WorkbenchTool) => { event.preventDefault(); event.stopPropagation(); cancelMove(); setMenu({ id: tool.id, title: tool.name, x: event.clientX, y: event.clientY, trigger: event.currentTarget }); };
   const move = (id: string, direction: number) => { const next = [...tools], at = next.findIndex(tool => tool.id === id), to = at + direction; if (at >= 0 && to >= 0 && to < next.length) { [next[at], next[to]] = [next[to], next[at]]; persist(next); } };
+  const cancelMove = useCallback(() => {
+    pointer.current = undefined;
+    setInsertion(null);
+    setMovingTool(null);
+  }, []);
+  useEffect(() => {
+    if (!movingTool) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || menu) return;
+      event.preventDefault();
+      event.stopPropagation();
+      cancelMove();
+    };
+    window.addEventListener("keydown", dismiss, true);
+    window.addEventListener("blur", cancelMove);
+    return () => {
+      window.removeEventListener("keydown", dismiss, true);
+      window.removeEventListener("blur", cancelMove);
+    };
+  }, [movingTool, menu, cancelMove]);
+  const locateDrop = (event: PointerEvent<HTMLElement>): ToolDrop | null => {
+    const start = pointer.current;
+    if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) return null;
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-workbench-tool-id]");
+    if (!target || !target.dataset.workbenchToolId || target === event.currentTarget || target.parentElement !== event.currentTarget.parentElement) return null;
+    const bounds = target.getBoundingClientRect();
+    const rightHalf = event.clientX >= bounds.left + bounds.width / 2;
+    return { id: target.dataset.workbenchToolId, after: rightHalf !== (getComputedStyle(target).direction === "rtl") };
+  };
+  const reorder = (id: string, drop: ToolDrop) => {
+    const tool = tools.find(item => item.id === id);
+    if (!tool) return;
+    const next = tools.filter(item => item.id !== id);
+    const target = next.findIndex(item => item.id === drop.id);
+    if (target < 0) return;
+    next.splice(target + (drop.after ? 1 : 0), 0, tool);
+    if (next.some((item, index) => item !== tools[index])) persist(next);
+  };
+  const reorderProps = (tool: WorkbenchTool) => ({
+    "data-workbench-tool-id": tool.id,
+    "data-tool-moving": movingTool === tool.id || undefined,
+    "data-tool-insertion": insertion?.id === tool.id ? insertion.after ? "after" : "before" : undefined,
+    onPointerDown(event: PointerEvent<HTMLElement>) {
+      if (event.button !== 0 || !event.isPrimary) return;
+      suppressClick.current = movingTool !== null;
+      if (movingTool !== tool.id || (event.ctrlKey && isMacPlatform())) return;
+      event.preventDefault();
+      pointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    onPointerMove(event: PointerEvent<HTMLElement>) {
+      if (pointer.current?.id !== event.pointerId) return;
+      const next = locateDrop(event);
+      setInsertion(previous => previous?.id === next?.id && previous?.after === next?.after ? previous : next);
+    },
+    onPointerUp(event: PointerEvent<HTMLElement>) {
+      if (pointer.current?.id !== event.pointerId) return;
+      const drop = locateDrop(event);
+      cancelMove();
+      if (drop) reorder(tool.id, drop);
+    },
+    onLostPointerCapture(event: PointerEvent<HTMLElement>) {
+      if (pointer.current?.id === event.pointerId) cancelMove();
+    },
+  });
   const selectedTool = tools.find(tool => tool.id === menu?.id);
   const menuActions = (tool: WorkbenchTool): FileBrowserMenuAction[] => {
     const at = tools.findIndex(item => item.id === tool.id), separator = tool.kind === "separator", native = isTauriRuntime();
@@ -49,7 +120,8 @@ export function CustomTools({ settings, context, onRun, onShowResult, hasResult,
       ] : []),
       { label: separator ? "编辑分隔符" : "编辑工具", separator: !separator, run: () => configure(tool) },
       ...(!separator ? [{ label: "复制工具", run: () => persist([...tools.slice(0, at + 1), { ...tool, id: crypto.randomUUID(), name: `${tool.name.slice(0, 75)} 副本`, icon: { ...tool.icon } }, ...tools.slice(at + 1)]) }] : []),
-      { label: "向左移动", separator: true, disabled: at === 0, run: () => move(tool.id, -1) },
+      { label: "拖动调整位置", separator: true, disabled: tools.length < 2, run: () => setMovingTool(tool.id) },
+      { label: "向左移动", disabled: at === 0, run: () => move(tool.id, -1) },
       { label: "向右移动", disabled: at === tools.length - 1, run: () => move(tool.id, 1) },
       ...(!separator ? [{ label: "在此前插入分隔符", run: () => persist([...tools.slice(0, at), { ...blank(), kind: "separator" as const, name: "分隔符" }, ...tools.slice(at)]) }] : []),
       { label: separator ? "删除分隔符" : "删除此工具", separator: true, danger: true, run: () => persist(tools.filter(item => item.id !== tool.id)) },
@@ -57,22 +129,32 @@ export function CustomTools({ settings, context, onRun, onShowResult, hasResult,
   };
   const iconNames = category === "其它" ? TOOLBAR_ICON_NAMES.filter(name => !Object.values(categories).flat().includes(name)) : TOOLBAR_ICON_NAMES.filter(name => categories[category as keyof typeof categories]?.includes(name));
   return <>
-    {tools.map(tool => tool.kind === "separator" ? <span key={tool.id} role="separator" aria-orientation="vertical" aria-label={tool.name} className="workbench-tool-separator" tabIndex={0} title={`${tool.name} · 右键菜单 · Enter 修改`} onContextMenu={event => showMenu(event, tool)} onKeyDown={event => { if (event.key === "Enter") configure(tool); }} /> : <button key={tool.id} type="button" aria-label={tool.name} title={!isTauriRuntime() ? `${tool.hint || tool.name}（命令仅桌面版可运行）` : !context ? `${tool.hint || tool.name}（当前未选择目录）` : tool.hint || tool.name} disabled={!isTauriRuntime()} data-tool-drop={dropTool === tool.id || undefined} onDragOver={event => {
-      if (!dragging?.current() || !event.dataTransfer.types.includes(BROWSER_DRAG_TYPE)) return;
+    {tools.map(tool => tool.kind === "separator" ? <span key={tool.id} {...reorderProps(tool)} role="separator" aria-orientation="vertical" aria-label={tool.name} className="workbench-tool-separator" tabIndex={0} title={`${tool.name} · 右键菜单 · Enter 修改`} onContextMenu={event => showMenu(event, tool)} onKeyDown={event => { if (event.key === "Enter" && !movingTool) configure(tool); }} /> : <button key={tool.id} {...reorderProps(tool)} type="button" aria-label={tool.name} title={!isTauriRuntime() ? `${tool.hint || tool.name}（命令仅桌面版可运行）` : !context ? `${tool.hint || tool.name}（当前未选择目录）` : tool.hint || tool.name} aria-disabled={!isTauriRuntime() || undefined} data-tool-drop={dropTool === tool.id || undefined} onDragOver={event => {
+      if (!isTauriRuntime() || movingTool || !dragging?.current() || !event.dataTransfer.types.includes(BROWSER_DRAG_TYPE)) return;
       event.preventDefault(); event.dataTransfer.dropEffect = "copy"; setDropTool(tool.id);
     }} onDragLeave={() => setDropTool(null)} onDrop={event => {
+      if (!isTauriRuntime() || movingTool) return;
       event.preventDefault(); setDropTool(null);
       const source = dragging?.take(event.dataTransfer.getData(BROWSER_DRAG_TYPE));
       if (!source) return;
       const invocation = workbenchDropInvocation(tool, context, source); onRun(invocation.tool, invocation.context);
-    }} onClick={event => { if (event.ctrlKey && isMacPlatform()) return; onRun({ ...tool, arguments: "" }, context, true); }} onContextMenu={event => showMenu(event, tool)}><ToolIcon tool={tool} /></button>)}
+    }} onClick={event => {
+      const blocked = movingTool || (event.detail > 0 && suppressClick.current);
+      suppressClick.current = false;
+      if (blocked || !isTauriRuntime() || (event.ctrlKey && isMacPlatform())) return;
+      onRun({ ...tool, arguments: "" }, context, true);
+    }} onContextMenu={event => showMenu(event, tool)} onDragStart={event => event.preventDefault()}><ToolIcon tool={tool} /></button>)}
     <button type="button" aria-label="添加工具" title="添加或配置工具栏工具" onClick={() => configure()}><ToolbarIcon name="plus" /></button>
-    {hasResult && <button type="button" aria-label="查看上次工具执行" title="查看正在运行或上次执行的工具" onClick={onShowResult}><ToolbarIcon name="info" /></button>}
+    {hasResult && <button type="button" aria-label="查看上次工具执行" title="查看正在运行或上次执行的工具" onClick={() => { cancelMove(); onShowResult(); }}><ToolbarIcon name="info" /></button>}
+    {movingTool && createPortal(<div className="workbench-tool-notice">
+      <span role="status">拖动「{tools.find(tool => tool.id === movingTool)?.name}」调整位置。</span>
+      <button type="button" aria-label="取消移动工具" title="取消移动工具（Esc）" onClick={cancelMove}>×</button>
+    </div>, document.body)}
     {notice && createPortal(<div className="workbench-tool-notice" role="status">{notice}<button type="button" aria-label="关闭工具结果" onPointerDown={event => event.preventDefault()} onClick={() => setNotice("")}>×</button></div>, document.body)}
     {menu && selectedTool && <FileBrowserContextMenu target={menu} actions={menuActions(selectedTool)} close={() => setMenu(null)} />}
-    {open && <WorkspaceDialog title="工具栏工具" onClose={() => setOpen(false)}><div className="workbench-tool-config">
+    {open && <WorkspaceDialog title="工具栏工具" onClose={() => setOpen(false)} previewBackdrop><div className="workbench-tool-config">
       <aside aria-label="已配置工具"><button type="button" onClick={() => configure()}>新建工具</button>{tools.map(tool => <button key={tool.id} type="button" aria-pressed={draft.id === tool.id} onClick={() => configure(tool)}>{tool.kind === "separator" ? <><span aria-hidden="true">│</span>{tool.name}（分隔符）</> : <><ToolIcon tool={tool} />{tool.name}</>}</button>)}</aside>
-      <form onSubmit={event => { event.preventDefault(); try { validateWorkbenchTool(draft); const next = tools.some(tool => tool.id === draft.id) ? tools.map(tool => tool.id === draft.id ? draft : tool) : [...tools, draft]; if (persist(next)) message("工具已保存"); } catch (cause) { setError(String(cause)); } }}>
+      <form id={formId} onSubmit={event => { event.preventDefault(); try { validateWorkbenchTool(draft); const next = tools.some(tool => tool.id === draft.id) ? tools.map(tool => tool.id === draft.id ? draft : tool) : [...tools, draft]; if (persist(next)) message("工具已保存"); } catch (cause) { setError(String(cause)); } }}>
         <label>名称<input aria-label="工具名称" value={draft.name} maxLength={80} required onChange={event => change({ name: event.target.value })} /></label>
         <label>工具类型<select aria-label="工具类型" value={draft.kind ?? "command"} onChange={event => change({ kind: event.target.value as WorkbenchTool["kind"], ...(event.target.value === "separator" && !draft.name ? { name: "分隔符" } : {}) })}><option value="command">命令按钮</option><option value="separator">竖线分隔符</option></select></label>
         {draft.kind !== "separator" && <>
@@ -88,8 +170,14 @@ export function CustomTools({ settings, context, onRun, onShowResult, hasResult,
         <div className="workbench-tool-icon-preview" aria-label="工具图标预览"><ToolIcon tool={draft} /></div>
         </>}
         {error && <p role="alert">{error}</p>}
-        <footer>{tools.some(tool => tool.id === draft.id) && <><button type="button" aria-label="工具向左移动" disabled={tools.findIndex(tool => tool.id === draft.id) === 0} onClick={() => { const next = [...tools], at = next.findIndex(tool => tool.id === draft.id); if (at > 0) { [next[at - 1], next[at]] = [next[at], next[at - 1]]; persist(next); } }}>←</button><button type="button" aria-label="工具向右移动" disabled={tools.findIndex(tool => tool.id === draft.id) === tools.length - 1} onClick={() => { const next = [...tools], at = next.findIndex(tool => tool.id === draft.id); if (at >= 0 && at < next.length - 1) { [next[at], next[at + 1]] = [next[at + 1], next[at]]; persist(next); } }}>→</button></>}{tools.some(tool => tool.id === draft.id) && <button type="button" onClick={() => { if (persist(tools.filter(tool => tool.id !== draft.id))) setDraft(blank()); }}>删除工具</button>}<button type="button" onClick={() => setOpen(false)}>关闭</button><button type="submit">保存工具</button></footer>
       </form>
-    </div></WorkspaceDialog>}
+    </div><footer className="workbench-tool-config-actions">
+      {tools.some(tool => tool.id === draft.id) && <>
+        <button type="button" aria-label="工具向左移动" disabled={tools[0].id === draft.id} onClick={() => move(draft.id, -1)}>←</button>
+        <button type="button" aria-label="工具向右移动" disabled={tools[tools.length - 1].id === draft.id} onClick={() => move(draft.id, 1)}>→</button>
+        <button type="button" onClick={() => { if (persist(tools.filter(tool => tool.id !== draft.id))) setDraft(blank()); }}>删除工具</button>
+      </>}
+      <button type="button" onClick={() => setOpen(false)}>关闭</button><button type="submit" form={formId}>保存工具</button>
+    </footer></WorkspaceDialog>}
   </>;
 }

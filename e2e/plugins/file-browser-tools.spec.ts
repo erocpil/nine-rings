@@ -45,6 +45,41 @@ test("每栏目录标签独立保留历史并在重新进入时恢复", async ({
   await left.getByRole("tab").first().dblclick();
   await expect(left.getByRole("tab")).toHaveCount(1);
 });
+test("目录标签菜单在双栏间移动和复制，隐藏组内边界方向", async ({ page }) => {
+  const { browser, panel, left, right } = await fixture(page);
+  await left.getByRole("option", { name: /^src/ }).dblclick();
+  const source = left.getByRole("tab", { name: "src", exact: true });
+  const menu = page.getByRole("menu", { name: "目录标签菜单" });
+  const item = (name: string) => menu.getByRole("menuitem", { name, exact: true });
+  await source.click({ button: "right" });
+  await expect(item("向左移动标签")).toHaveCount(0);
+  await expect(item("向右移动标签")).toHaveCount(0);
+  await item("固定标签").click();
+  await source.click({ button: "right" });
+  await item("复制到另一侧").click();
+  const copy = right.getByRole("tab", { name: "src", exact: true });
+  await expect(copy).toHaveAttribute("aria-selected", "true");
+  await expect(copy).toHaveAttribute("aria-description", "固定标签");
+  await expect(source).toBeVisible();
+  await expect(right.getByRole("option", { name: /deep.c/ })).toBeVisible();
+  await right.getByRole("tab").first().click({ button: "right" });
+  await expect(item("向左移动标签")).toHaveCount(0);
+  await expect(item("向右移动标签")).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await copy.click({ button: "right" });
+  await expect(item("向左移动标签")).toBeEnabled();
+  await expect(item("向右移动标签")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await source.click({ button: "right" });
+  await item("移动到另一侧").click();
+  await expect(left.getByRole("tab", { name: "目录", exact: true })).toBeVisible();
+  await expect(left.getByRole("button", { name: "恢复关闭的目录标签" })).toBeDisabled();
+  await expect(right.getByRole("tab")).toHaveText(["Right", "◆ src", "◆ src"]);
+  await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await panel.getByRole("button", { name: "双栏浏览", exact: true }).click();
+  await expect(right.getByRole("tab").last()).toHaveAttribute("aria-selected", "true");
+  await expect(right.getByRole("option", { name: /deep.c/ })).toBeVisible();
+});
 test("快速预览跟随选中项，迟到文本不覆盖新预览，手机可返回目录", async ({ page }) => {
   const { browser, left, right } = await fixture(page);
   await page.evaluate(async () => {

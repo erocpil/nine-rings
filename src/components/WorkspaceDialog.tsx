@@ -1,20 +1,24 @@
 import { useRef, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "../hooks/useDialogFocus";
+import { useBackdropPreview } from "../hooks/useBackdropPreview";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 /** Shared, opaque workspace overlay; it does not replace the mounted editor. */
-export function WorkspaceDialog({ title, onClose, children, initialFocusRef, restoreFocusRef, className }: {
+export function WorkspaceDialog({ title, onClose, children, initialFocusRef, restoreFocusRef, className, previewBackdrop = false }: {
   title: string; onClose: () => void; children: ReactNode; initialFocusRef?: RefObject<HTMLInputElement>;
   restoreFocusRef?: RefObject<HTMLElement | null>;
   className?: string;
+  previewBackdrop?: boolean;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef<HTMLButtonElement>(null);
+  const { previewing, handlers } = useBackdropPreview(previewBackdrop);
   useDialogFocus(panel, true, initialFocusRef ?? close, restoreFocusRef);
-  return createPortal(<div className="workspace-dialog-backdrop" onPointerDown={event => {
-    if (event.target === event.currentTarget) onClose();
-  }}>
+  return createPortal(<div className={`workspace-dialog-backdrop${previewBackdrop ? " settings-preview-backdrop" : ""}${previewing ? " settings-peeking" : ""}`}
+    {...handlers} onPointerDown={previewBackdrop ? handlers.onPointerDown : event => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
     <div ref={panel} className={className ? `workspace-dialog ${className}` : "workspace-dialog"} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}
       onClick={() => {
         // Clicking non-focusable space can leave keyboard focus on body,

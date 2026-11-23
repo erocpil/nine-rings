@@ -349,10 +349,20 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
+  animation: fadeIn 0.15s ease;
+}
+
+.editor-appearance-overlay,
+.settings-overlay.settings-expanded-overlay,
+.workspace-dialog-backdrop.settings-preview-backdrop {
   background: color-mix(in srgb, #18201e 24%, transparent);
   backdrop-filter: blur(2px) brightness(.95);
   -webkit-backdrop-filter: blur(2px) brightness(.95);
-  animation: fadeIn 0.15s ease;
+}
+
+.settings-preview-backdrop.settings-peeking {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .editor-appearance-panel,

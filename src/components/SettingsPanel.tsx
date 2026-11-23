@@ -1364,7 +1364,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       {leaveSyncDialog}
       {editorAppearanceOpen && config && (
         <EditorAppearancePanel
-          mobile={mobileSettingsViewport}
+          dismissOnOutside={mobileSettingsViewport}
           onPreviewChange={setPeeking}
           initialSearch={editorAppearanceSearch}
           config={editorAppearanceDraft ?? config}

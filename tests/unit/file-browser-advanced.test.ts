@@ -3,17 +3,67 @@ import { compareBrowserDirectories } from "../../src/lib/local-files/browser-com
 import { planBrowserDrop } from "../../src/lib/local-files/browser-drag";
 import {
   addBrowserTab,
+  browserSideRows,
+  MAX_BROWSER_TABS,
   modifyBrowserTabs,
   parseBrowserWorkspace,
   reconcileBrowserTabs,
   reorderBrowserTab,
   selectBrowserTab,
+  transferBrowserTab,
   updateBrowserTab,
 } from "../../src/lib/local-files/browser-tabs";
 import {
   browserLocation,
   navigateBrowserPane,
 } from "../../src/lib/local-files/browser-state";
+
+it("transfers a directory tab from an inactive row to the opposite active row", () => {
+  const tab = (tabId: string) => ({
+    tabId,
+    history: [{ rootId: "root", node: tabId, selected: [], scrollTop: 0 }],
+    index: 0,
+  });
+  const state = parseBrowserWorkspace(
+    JSON.stringify({
+      version: 2,
+      groups: [
+        { tabs: [tab("left")], active: 0 },
+        { tabs: [tab("right")], active: 0 },
+      ],
+      extraGroups: [
+        [{ tabs: [tab("other-left")], active: 0 }],
+        [{ tabs: [tab("other-right")], active: 0 }],
+      ],
+      activeRows: [0, 1],
+      visibleRows: [2, 2],
+    }),
+  );
+  const copied = transferBrowserTab(state, 0, 1, "other-left", true);
+  expect(copied.groups[1].tabs[1]).toMatchObject({
+    history: browserSideRows(state, 0)[1].tabs[0].history,
+  });
+  expect(copied.groups[1].tabs[1].tabId).not.toBe("other-left");
+  expect(copied.extraGroups).toBe(state.extraGroups);
+
+  const moved = transferBrowserTab(copied, 0, 1, "other-left", false);
+  expect(moved.active).toBe(1);
+  expect(moved.activeRows).toEqual([0, 1]);
+  expect(moved.groups[0]).toBe(state.groups[0]);
+  expect(browserSideRows(moved, 0)[1].tabs[0].history).toEqual([]);
+  expect(browserSideRows(moved, 0)[1].closed).toEqual([]);
+  expect(browserSideRows(moved, 1)[0]).toBe(browserSideRows(state, 1)[0]);
+  expect(moved.groups[1].tabs[2].tabId).toBe("other-left");
+  expect(moved.groups[1].active).toBe(2);
+  const restored = parseBrowserWorkspace(JSON.stringify(moved));
+  expect(restored.groups[1].tabs[2].tabId).toBe("other-left");
+
+  let full = moved;
+  while (full.groups[1].tabs.length < MAX_BROWSER_TABS)
+    full = addBrowserTab(full, 1);
+  expect(transferBrowserTab(full, 0, 0, "left", false)).toBe(full);
+  expect(transferBrowserTab(full, 0, 0, "left", true)).toBe(full);
+});
 
 const roots = [
   { rootId: "l", node: "" },

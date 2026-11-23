@@ -10,6 +10,7 @@ import { blockWorkspacePreferences, codeBlockHeightPercent, type WorkspacePrefer
 import { DEFAULT_CONFIG } from "../lib/storage/types";
 
 import { useDialogFocus } from "../hooks/useDialogFocus";
+import { useBackdropPreview } from "../hooks/useBackdropPreview";
 import type { BlockDisplayDraft } from "../lib/save-editor-appearance";
 
 interface Props {
@@ -22,13 +23,14 @@ interface Props {
   sourceFontFamily?: AppConfig["editor_font_family"];
   onSourceFontChange?: (value: AppConfig["editor_font_family"]) => void;
   appearanceDefaults?: Partial<AppConfig> & { source_font_family: AppConfig["editor_font_family"] };
-  mobile: boolean;
-  onPreviewChange: (previewing: boolean) => void;
+  dismissOnOutside?: boolean;
+  onPreviewChange?: (previewing: boolean) => void;
 }
 
-export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate, initialSearch, mobile, onPreviewChange, sourceFontFamily, onSourceFontChange, appearanceDefaults }: Props) {
+export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate, initialSearch, dismissOnOutside = false, onPreviewChange, sourceFontFamily, onSourceFontChange, appearanceDefaults }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const { previewing, handlers } = useBackdropPreview(!dismissOnOutside, onPreviewChange);
   useDialogFocus(panelRef, Boolean(onSourceFontChange), closeRef);
   const [applying, setApplying] = useState(false);
   const applyingRef = useRef(false);
@@ -99,24 +101,15 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
 
   return (
     <ReadingTypographyProvider config={displayConfig}><div
-      className="editor-appearance-overlay"
+      className={`editor-appearance-overlay settings-preview-backdrop${previewing ? " settings-peeking" : ""}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="editor-appearance-title"
       onClick={(event) => {
         event.stopPropagation();
-        if (mobile && event.target === event.currentTarget) close();
+        if (dismissOnOutside && event.target === event.currentTarget) close();
       }}
-      onPointerDown={event => {
-        if (mobile || event.pointerType !== "mouse" || event.button !== 0 || event.target !== event.currentTarget) return;
-        event.preventDefault();
-        event.stopPropagation();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        onPreviewChange(true);
-      }}
-      onPointerUp={() => onPreviewChange(false)}
-      onPointerCancel={() => onPreviewChange(false)}
-      onLostPointerCapture={() => onPreviewChange(false)}
+      {...handlers}
     >
       <div ref={panelRef} className="editor-appearance-panel" onClick={(event) => event.stopPropagation()}>
         <div ref={headingProbeRef} className="editor-content" aria-hidden="true"

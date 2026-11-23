@@ -7,10 +7,11 @@ import type { FileRoot } from "../lib/local-files/service";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 
 type Action = BrowserTabAction;
-export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction, onReorder }: {
-  group: BrowserTabGroup; roots: FileRoot[]; side: 0 | 1;
+export function FileBrowserTabs({ group, roots, side, targetFull, onSelect, onAdd, onAction, onReorder, onTransfer }: {
+  group: BrowserTabGroup; roots: FileRoot[]; side: 0 | 1; targetFull: boolean;
   onSelect: (index: number, close?: boolean, confirmedPinned?: boolean) => void; onAdd: () => void;
   onAction: (id: string, action: Action, confirmedPinned?: boolean) => void; onReorder: (id: string, targetId: string) => void;
+  onTransfer: (id: string, copy: boolean) => void;
 }) {
   // A native sheet can interrupt a press; an unpaired mouse click must not
   // become a new tab. Keyboard/accessibility activation keeps detail=0.
@@ -74,9 +75,11 @@ export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction,
         { label: "限制在固定目录内", checked: tab.restrictToAnchor === true, disabled: !browserTabAnchor(tab) || browserTabAnchor(tab)?.missing, run: () => onAction(tab.tabId, "limit") },
         { label: "切换到此标签时返回固定目录", checked: tab.returnToAnchor === true, disabled: !browserTabAnchor(tab) || browserTabAnchor(tab)?.missing, run: () => onAction(tab.tabId, "auto-home") },
       ] : []),
-      { label: "向左移动标签", disabled: index === 0, run: () => onAction(tab.tabId, "left") },
-      { label: "向右移动标签", disabled: index === group.tabs.length - 1, run: () => onAction(tab.tabId, "next") },
-      { label: "关闭标签", disabled: !tab.pinned && group.tabs.length === 1, run: () => requestClose(tab.tabId, "single") },
+      ...(index > 0 ? [{ label: "向左移动标签", run: () => onAction(tab.tabId, "left") }] : []),
+      ...(index < group.tabs.length - 1 ? [{ label: "向右移动标签", run: () => onAction(tab.tabId, "next") }] : []),
+      { label: "移动到另一侧", disabled: targetFull, run: () => onTransfer(tab.tabId, false) },
+      { label: "复制到另一侧", disabled: targetFull, run: () => onTransfer(tab.tabId, true) },
+      { label: "关闭标签", separator: true, disabled: !tab.pinned && group.tabs.length === 1, run: () => requestClose(tab.tabId, "single") },
       { label: "关闭其它标签", disabled: group.tabs.length <= 1, run: () => requestClose(tab.tabId, "others") },
       { label: "关闭右侧标签", disabled: index === group.tabs.length - 1, run: () => requestClose(tab.tabId, "right") },
       { label: "恢复关闭的标签", disabled: !group.closed?.length || group.tabs.length >= MAX_BROWSER_TABS, run: () => onAction(tab.tabId, "restore") },

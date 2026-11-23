@@ -131,6 +131,36 @@ export function reorderBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, id:
   groups[side] = { ...group, tabs, active: tabs.findIndex(tab => tab.tabId === activeId) };
   return { ...state, groups };
 }
+
+export function transferBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, row: number, id: string, copy: boolean): BrowserWorkspaceState {
+  const targetSide = side === 0 ? 1 : 0;
+  const target = state.groups[targetSide];
+  const sourceRow = state.activeRows?.[side] ?? 0;
+  const rows = browserSideRows(state, side);
+  const source = rows[row];
+  const index = source?.tabs.findIndex(tab => tab.tabId === id) ?? -1;
+  if (!source || index < 0 || target.tabs.length >= MAX_BROWSER_TABS) return state;
+
+  const tab = source.tabs[index];
+  // Older sessions only enforce unique IDs within each side.
+  const needsNewId = copy || browserSideRows(state, targetSide).some(group => group.tabs.some(tab => tab.tabId === id));
+  const groups = [...state.groups] as BrowserWorkspaceState["groups"];
+  groups[targetSide] = { ...target, tabs: [...target.tabs, needsNewId ? { ...tab, tabId: tabId() } : tab], active: target.tabs.length };
+  if (copy) return { ...state, groups, active: targetSide };
+
+  const tabs = source.tabs.filter((_, at) => at !== index);
+  if (!tabs.length) tabs.push({ ...emptyBrowserState().panes[0], tabId: tabId() });
+  const remaining = { ...source, tabs, active: Math.min(tabs.length - 1, source.active - Number(index < source.active)) };
+  if (row === sourceRow) {
+    groups[side] = remaining;
+    return { ...state, groups, active: targetSide };
+  }
+  const extraGroups = [...state.extraGroups!] as NonNullable<BrowserWorkspaceState["extraGroups"]>;
+  rows[row] = remaining;
+  extraGroups[side] = rows.filter((_, at) => at !== sourceRow);
+  return { ...state, groups, extraGroups, active: targetSide };
+}
+
 /** Move entire groups, retaining every tab's identity and state. */
 export function exchangeBrowserPanes(state: BrowserWorkspaceState): BrowserWorkspaceState {
   return { ...state, ...(state.extraGroups ? { extraGroups: [state.extraGroups[1], state.extraGroups[0]] as [BrowserTabGroup[], BrowserTabGroup[]], activeRows: [state.activeRows?.[1] ?? 0, state.activeRows?.[0] ?? 0] as [number, number], visibleRows: [state.visibleRows?.[1] ?? 1, state.visibleRows?.[0] ?? 1] as [number, number] } : {}), groups: [state.groups[1], state.groups[0]], active: state.active === 0 ? 1 : 0 };

@@ -106,7 +106,7 @@ export function SourceFormattingControls({ editorRef, sessionKey, language, read
         if (value === "custom") { setDraft(settings.custom); setConfigError(""); setConfigOpen(true); }
         else update({ ...settings, style: value as SourceFormatSettings["style"] });
       }} />
-    {configOpen && <WorkspaceDialog title="代码格式配置" onClose={() => setConfigOpen(false)}>
+    {configOpen && <WorkspaceDialog title="代码格式配置" onClose={() => setConfigOpen(false)} previewBackdrop>
       <form className="source-format-config" onSubmit={event => { event.preventDefault(); update({ style: "custom", custom: draft }); setConfigOpen(false); }}>
         <p>粘贴或导入 .clang-format（YAML / JSON）。YAML 支持 # 整行和行尾注释。配置优先于 Tab Size 与 Tab/空格偏好，仅保存在本机。</p>
         <label>选择 .clang-format 文件<input type="file" aria-label="导入格式配置" onChange={async event => {

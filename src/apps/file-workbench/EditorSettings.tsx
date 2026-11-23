@@ -22,34 +22,29 @@ export function WorkbenchEditorSettingsDialog({ typography, config, store, onClo
 }) {
   const [draft, setDraft] = useState<Partial<WorkbenchTypography> | null>(null);
   const [error, setError] = useState("");
-  const [previewing, setPreviewing] = useState(false);
   const { palette, choosePalette } = useWorkbenchPaletteSetting(store);
   const editorConfig = { ...DEFAULT_CONFIG, ...typography, ...config, interface_style: "classic" as const };
   const update = (save: () => void) => {
     try { save(); setError(""); }
     catch { setError("无法保存编辑器设置，请检查本地存储后重试。"); }
   };
-  const closeAppearance = () => { setDraft(null); setPreviewing(false); };
+  const closeAppearance = () => setDraft(null);
 
-  if (draft) return createPortal(<div className={previewing ? "workbench-appearance-previewing" : undefined}>
-    <EditorAppearancePanel
+  if (draft) return createPortal(<EditorAppearancePanel
       config={{ ...editorConfig, ...draft }}
       dirty={Object.keys(draft).some(key => draft[key as keyof WorkbenchTypography] !== typography[key as keyof WorkbenchTypography])}
       sourceFontFamily={draft.source_font_family ?? typography.source_font_family}
       onSourceFontChange={value => setDraft(current => ({ ...current, source_font_family: value }))}
       appearanceDefaults={DEFAULT_TYPOGRAPHY}
-      mobile={window.matchMedia("(max-width: 760px)").matches}
       onClose={closeAppearance}
-      onPreviewChange={setPreviewing}
       onUpdate={(patch: Partial<AppConfig>) => setDraft(current => ({ ...current, ...patch }))}
       onApply={async display => {
         saveWorkbenchTypography(store, { ...typography, ...draft }, display);
         closeAppearance();
       }}
-    />
-  </div>, document.body);
+    />, document.body);
 
-  return <WorkspaceDialog title="编辑器设置" onClose={onClose}>
+  return <WorkspaceDialog title="编辑器设置" onClose={onClose} previewBackdrop>
     <div className="workbench-editor-settings">
       {error && <p role="alert">{error}</p>}
       <Field label="文件标签宽度" desc="按半角字符数计算文件名区域。空间不足的文件名会省略，悬停可看全名。">

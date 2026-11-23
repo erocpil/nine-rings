@@ -19,7 +19,7 @@ export function FileBrowserShortcuts({ value, mac, reservations, onSave, onClose
     if (error) { setMessage(error); return; }
     setDraft(next); setRecording(null); setMessage("");
   };
-  return <WorkspaceDialog title="文件浏览快捷键" onClose={onClose} restoreFocusRef={restoreFocusRef}>
+  return <WorkspaceDialog title="文件浏览快捷键" onClose={onClose} restoreFocusRef={restoreFocusRef} previewBackdrop>
     <div className="file-browser-shortcut-settings">
       <p>文件操作和预览仅在文件列表获得焦点时生效；路径与过滤在当前目录栏生效。重新录制会替换该命令的原有按键。</p>
       {(message || validationError) && <p role="alert">{message || validationError}</p>}
@@ -27,7 +27,7 @@ export function FileBrowserShortcuts({ value, mac, reservations, onSave, onClose
         {[...new Set(browserShortcutCommands.map(command => command.group))].map(group => <fieldset key={group}><legend>{group}</legend>
           {browserShortcutCommands.filter(command => command.group === group).map(command => <div key={command.id} className="file-browser-shortcut-row">
             <span title={command.scope}>{command.label}</span>
-            {recording === command.id ? <input ref={input} autoFocus readOnly value="请按下组合键…" aria-label={`录制${command.label}快捷键`} onBlur={() => setRecording(null)} onKeyDown={event => {
+            {recording === command.id ? <input ref={input} className="settings-input" autoFocus readOnly value="请按下组合键…" aria-label={`录制${command.label}快捷键`} onBlur={() => setRecording(null)} onKeyDown={event => {
               event.stopPropagation();
               if (event.key === "Tab") { setRecording(null); return; }
               event.preventDefault();

@@ -225,10 +225,10 @@
 .file-browser-shortcut-settings { max-width: 900px; padding: 12px 16px; }
 .file-browser-shortcut-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .file-browser-shortcut-groups fieldset { min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
-.file-browser-shortcut-row { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr) 28px 28px; align-items: center; gap: 5px; margin-block: 6px; }
+.file-browser-shortcut-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px 28px; align-items: center; gap: 5px; margin-block: 6px; overflow-wrap: anywhere; }
 .file-browser-shortcut-row > button, .file-browser-shortcut-row > input { min-width: 0; font-size: 12px; }
 .file-browser-shortcut-row kbd { white-space: normal; }
-.file-browser-shortcut-settings footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.file-browser-shortcut-settings footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 @media (max-width: 720px) { .file-browser-shortcut-groups { grid-template-columns: minmax(0, 1fr); } }
 
 .file-browser-directory-size dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 20px; }
@@ -236,7 +236,8 @@
 .file-browser-size-path { overflow-wrap: anywhere; font-weight: 600; }
 
 .file-browser-display-settings { display: grid; gap: 12px; padding: 8px 16px 20px; font-size: 13px; }
-.file-browser-display-settings label { display: flex; align-items: center; gap: 8px; }
+.file-browser-display-settings label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.file-browser-display-settings .settings-input { flex: none; min-width: 0; max-width: 100%; }
 .file-browser-display-settings input[type=number] { width: 70px; }
 .file-browser-display-settings fieldset { display: flex; gap: 16px; flex-wrap: wrap; }
 
