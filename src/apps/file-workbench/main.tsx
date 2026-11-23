@@ -213,7 +213,11 @@ function Workbench() {
       </div>
     </div>}
     {execution.element}
-    <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} revealFile={reveal} toolbarExtras={tools} onToolContext={setToolContext} />
+    <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} revealFile={reveal} toolbarExtras={tools} commands={customTools.filter(tool => tool.kind !== "separator").map(tool => ({
+      id: `tool-${tool.id}`, label: tool.name, detail: `自定义工具${tool.hint ? ` · ${tool.hint}` : ""}`,
+      unavailable: !isTauriRuntime() ? "命令仅桌面版可执行" : undefined,
+      run: () => void execution.request(tool, toolContext),
+    }))} onToolContext={setToolContext} />
     {file && (image ? <FileBrowserQuickPreview settings={host.workspace.settings} rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active autoFocus navigationAxis="horizontal" previous={previous} next={next} onNavigate={file.siblings ? stepPreview : undefined} revision={0} closeLabel="返回文件浏览" headerActions={externalEditor} onClose={closeFile} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} linkRequest={linkRequest} onFollowFile={followLink} onLinkHistory={traverseLinks} linkHistory={{ back: linkHistory.current.back, forward: linkHistory.current.forward }} settings={host.workspace.settings} headerActions={externalEditor} host={host.source} provider={host.workspace.provider} onNavigate={file.siblings ? stepPreview : undefined} previous={previous} next={next} onClose={closeFile} closeRequest={closeSource} /></Suspense>)}</div>
     <footer>{editorOpen && <span>独立编辑器打开期间可操作无关路径；已打开文件及其父目录受保护，撤销目录授权须先关闭编辑器。 </span>}授权目录可请求保存原文件；目录快照只能导出副本。目录操作通过确认队列执行，不覆盖同名项目。{isTauriRuntime() ? "目录授权保存在独立工作台中。" : "授权仅限当前会话。"}{nativeNotice && <span role="alert">{nativeNotice}</span>}{draftError && <span role="alert">{draftError}</span>}</footer>
     {reviewMoves && <Suspense fallback={<p role="status">正在加载引用检查…</p>}><MarkdownLinkUpdateDialog batch={reviewMoves} provider={host.workspace.provider} read={host.source.read} write={writeMarkdownLinks}

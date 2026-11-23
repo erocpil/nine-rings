@@ -3,7 +3,8 @@ import { FileBrowserDirectorySize } from "./FileBrowserDirectorySize";
 import { BrowserDirectorySizeCache } from "../lib/local-files/browser-directory-size";
 import { FileBrowserShortcuts } from "./FileBrowserShortcuts";
 import { useBrowserShortcuts } from "../hooks/useBrowserShortcuts";
-import { browserShortcutAction, displayBrowserShortcut, saveBrowserShortcuts } from "../lib/local-files/browser-shortcuts";
+import { browserShortcutAction, browserShortcutCommands, displayBrowserShortcut, saveBrowserShortcuts } from "../lib/local-files/browser-shortcuts";
+import { FileBrowserCommandPalette, type FileBrowserCommand } from "./FileBrowserCommandPalette";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { FileBrowserRootManager } from "./FileBrowserRootManager";
 import type { BrowserToolContext } from "../lib/local-files/browser-tool-context";
@@ -11,7 +12,7 @@ import { FileBrowserRowCount } from "./FileBrowserRowCount";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type SetStateAction, type ReactNode } from "react";
 import type { FileNode, FileRoot } from "../lib/local-files/file-model";
 import { FILE_BROWSER_STATE_KEY, browserLocation, navigateBrowserPane, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
-import { MAX_BROWSER_TABS, transferBrowserTab, revokeBrowserRoot, activeBrowserPanes, activateBrowserRow, browserSideRows, setBrowserRowCount, updateBrowserRow, addBrowserTab, revealBrowserFile, exchangeBrowserPanes, mirrorBrowserPath, modifyBrowserTabs, reorderBrowserTab, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
+import { MAX_BROWSER_TABS, browserTabAllows, browserTabAnchor, transferBrowserTab, revokeBrowserRoot, activeBrowserPanes, activateBrowserRow, browserSideRows, setBrowserRowCount, updateBrowserRow, addBrowserTab, revealBrowserFile, exchangeBrowserPanes, mirrorBrowserPath, modifyBrowserTabs, reorderBrowserTab, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
 import type { BrowserOperation } from "../lib/local-files/browser-operation-contract";
 import { browserJobSettled } from "../lib/local-files/browser-queue-core";
 import { FileBrowserQueueDialog } from "./FileBrowserQueueDialog";
@@ -31,13 +32,14 @@ import "../styles/file-browser.css";
 import type { BrowserPreviewNavigation } from "../lib/local-files/browser-preview";
 import { BROWSER_DRAG_TYPE, planBrowserDrop, type BrowserDragSource } from "../lib/local-files/browser-drag";
 
-interface Props { workspace: BrowserWorkspaceHost; active: boolean; initialRootId?: string; revealFile?: { rootId: string; node: string }; onClose?: () => void; toolbarExtras?: ReactNode; onToolContext?: (context: BrowserToolContext | null) => void }
+interface Props { workspace: BrowserWorkspaceHost; active: boolean; initialRootId?: string; revealFile?: { rootId: string; node: string }; onClose?: () => void; toolbarExtras?: ReactNode; commands?: FileBrowserCommand[]; onToolContext?: (context: BrowserToolContext | null) => void }
 export function FileBrowserWorkspace(props: Props) {
   return <FileBrowserHostContext.Provider value={props.workspace}><FileBrowserWorkspaceBody {...props} /></FileBrowserHostContext.Provider>;
 }
-function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile, onClose, toolbarExtras, onToolContext }: Props) {
+function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile, onClose, toolbarExtras, commands = [], onToolContext }: Props) {
   const compact = workspace.presentation === "compact";
   const { shortcuts, mac } = useBrowserShortcuts(workspace.settings);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const shortcutsButton = useRef<HTMLButtonElement>(null);
   const reservations = workspace.shortcutReservations?.() ?? [];
@@ -99,7 +101,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
   const previewNavigation = useRef<[BrowserPreviewNavigation | null, BrowserPreviewNavigation | null]>([null, null]);
   const drag = useRef<{ token: string; source: BrowserDragSource } | null>(null);
   const provider = workspace.provider;
-  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); setSizeScope(null); drag.current = null; } }, [active]);
+  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); setPaletteOpen(false); setSizeScope(null); drag.current = null; } }, [active]);
   useEffect(() => workspace.subscribeMutations(change => {
     sizeCache.current.invalidate(change.rootId);
     if (change.targetRootId) sizeCache.current.invalidate(change.targetRootId);
@@ -127,12 +129,19 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
   useEffect(() => () => workspace.viewMenu?.update({ enabled: false, showHidden: false }), [workspace]);
   const currentRow = currentRows[state.active];
   const previewNode = currentRow?.tabId === state.groups[state.active].tabs[state.groups[state.active].active].tabId && currentRow.rootId === currentLocation?.rootId && currentRow.node !== null ? currentRow.node : currentLocation?.selected[currentLocation.selected.length - 1];
-  const operationDisabled = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, count = browserLocation(panes[side])?.selected.length ?? 0, selection?: readonly string[]) => {
+  const operationUnavailable = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, count = browserLocation(panes[side])?.selected.length ?? 0, selection?: readonly string[]) => {
     const source = browserLocation(panes[side]);
     const target = browserLocation(panes[side === 0 ? 1 : 0]);
-    if (kind !== "file" && kind !== "directory" && previewNavigation.current[side]?.hasLink(selection ?? source?.selected ?? [])) return true;
-    return opening || !source || !workspace.canWrite(source.rootId) || ((kind === "copy" || kind === "move") && (!workspace.canTransfer() || !target || !workspace.canWrite(target.rootId))) || (kind === "trash" && !workspace.canTrash()) || (["copy", "move", "trash", "batch-rename"].includes(kind) && !count) || (kind === "rename" && count !== 1);
+    if (opening) return "正在打开文件";
+    if (!source) return "请先选择目录";
+    if (!workspace.canWrite(source.rootId)) return "来源目录只读";
+    if ((kind === "copy" || kind === "move") && (!workspace.canTransfer() || !target || !workspace.canWrite(target.rootId))) return "对侧需要可写目录和传输权限";
+    if (kind === "trash" && !workspace.canTrash()) return "系统回收站不可用";
+    if (kind === "rename" && count !== 1) return "请选择一个文件或目录";
+    if (["copy", "move", "trash", "batch-rename"].includes(kind) && !count) return "请先选择文件或目录";
+    if (kind !== "file" && kind !== "directory" && previewNavigation.current[side]?.hasLink(selection ?? source.selected)) return "选中项含特殊链接";
   };
+  const operationDisabled = (kind: BrowserOperation["kind"], side?: 0 | 1, count?: number, selection?: readonly string[]) => Boolean(operationUnavailable(kind, side, count, selection));
   const restoreBrowserFocus = (selector: string) => {
     const previous = document.activeElement;
     requestAnimationFrame(() => {
@@ -212,17 +221,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
     catch (reason) { if (!controller.signal.aborted) setError(String(reason)); }
     finally { if (!controller.signal.aborted) setOpening(false); }
   };
-  return <FileBrowserDragContext.Provider value={{
-    current: () => active ? drag.current?.source ?? null : null,
-    take: token => { const value = drag.current; if (!active || !value || token !== value.token) return null; drag.current = null; return value.source; },
-  }}><section ref={host} className={`dual-file-browser${compact ? " file-browser-compact" : ""}`} aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
-    if (!active || event.nativeEvent.isComposing || !(event.target instanceof HTMLElement) || !event.target.matches(".file-browser-list")) return;
-    if (quickPreview && event.key === "Escape") {
-      event.preventDefault(); event.stopPropagation(); closePreview(); return;
-    }
-    const action = browserShortcutAction(event, shortcuts, mac, workspace.shortcutReservations?.());
-    if (!action || action === "address" || action === "filter") return;
-    event.preventDefault(); event.stopPropagation();
+  const runListCommand = (action: Exclude<(typeof browserShortcutCommands)[number]["id"], "address" | "filter">) => {
     switch (action) {
       case "home": setState(current => modifyBrowserTabs(current, current.active, current.groups[current.active].tabs[current.groups[current.active].active].tabId, "home")); break;
       case "preview": setQuickPreview(value => !value); break;
@@ -234,6 +233,70 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       case "mirror": if (currentLocation) { setQuickPreview(false); setState(mirrorBrowserPath); focusList(state.active); } break;
       default: startOperation(action);
     }
+  };
+  const paletteCommands = (): FileBrowserCommand[] => {
+    const side = state.active;
+    const activeTab = state.groups[side].tabs[state.groups[side].active];
+    const rootNames = new Map(roots.map(root => [root.id, root.name]));
+    const locationLabel = (rootId: string, node: string) => [rootNames.get(rootId) ?? rootId, node].filter(Boolean).join("/");
+    const paneName = (side: 0 | 1) => side === 0 ? "左栏" : "右栏";
+    const unavailable = (id: string) => {
+      switch (id) {
+        case "home": { const anchor = browserTabAnchor(activeTab); return !anchor || anchor.missing ? "当前标签没有可用的固定目录" : undefined; }
+        case "mirror": case "search": return !currentLocation ? "请先选择目录" : undefined;
+        case "compare": return !currentLocation || !targetLocation ? "两栏都需要一个目录" : undefined;
+        case "refresh": case "preview": case "queue": case "exchange": return undefined;
+        default: return operationUnavailable(id as BrowserOperation["kind"]);
+      }
+    };
+    const list = browserShortcutCommands.flatMap(({ id, label }) => id === "address" || id === "filter" ? [] : [{
+      id, label, detail: paneName(side), shortcut: shortcuts[id].map(key => displayBrowserShortcut(key, mac)).join(" / "),
+      unavailable: unavailable(id), run: () => runListCommand(id),
+    }]);
+    const fixed: FileBrowserCommand[] = [], recent: FileBrowserCommand[] = [];
+    const seen = new Set<string>();
+    for (const tabSide of [side, side === 0 ? 1 : 0] as const) {
+      browserSideRows(state, tabSide).slice(0, state.visibleRows?.[tabSide] ?? 1).forEach((group, row) => {
+        for (const tab of group.tabs) {
+          const anchor = browserTabAnchor(tab);
+          if (anchor && rootNames.has(anchor.rootId)) fixed.push({
+            id: `fixed-${tabSide}-${tab.tabId}`, label: `固定目录 · ${anchor.label || locationLabel(anchor.rootId, anchor.node)}`,
+            detail: `${paneName(tabSide)} · ${locationLabel(anchor.rootId, anchor.node)}`, unavailable: anchor.missing ? "固定位置已失效" : undefined,
+            run: () => { setQuickPreview(false); setState(current => modifyBrowserTabs(activateBrowserRow(current, tabSide, row), tabSide, tab.tabId, "home")); },
+          });
+          for (const entry of [...tab.history.slice(0, tab.index + 1)].reverse()) {
+            const id = JSON.stringify([entry.rootId, entry.node]);
+            if (seen.has(id) || !rootNames.has(entry.rootId) || recent.length >= 100) continue;
+            seen.add(id);
+            recent.push({
+              id: `recent-${id}`, label: `最近目录 · ${locationLabel(entry.rootId, entry.node)}`,
+              detail: `在${paneName(side)}打开`, unavailable: browserTabAllows(activeTab, entry) ? undefined : "当前固定标签限制了可访问的子目录",
+              run: () => { setQuickPreview(false); changePane(side, pane => navigateBrowserPane(pane, entry.rootId, entry.node)); },
+            });
+          }
+        }
+      });
+    }
+    return [...list, ...commands, ...fixed, ...recent];
+  };
+  return <FileBrowserDragContext.Provider value={{
+    current: () => active ? drag.current?.source ?? null : null,
+    take: token => { const value = drag.current; if (!active || !value || token !== value.token) return null; drag.current = null; return value.source; },
+  }}><section ref={host} className={`dual-file-browser${compact ? " file-browser-compact" : ""}`} aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
+    if (!active || event.nativeEvent.isComposing || event.defaultPrevented || !(event.target instanceof HTMLElement) || !host.current?.contains(event.target)) return;
+    if (compact && !event.repeat && event.code === "KeyP" && event.shiftKey && !event.altKey
+      && (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)
+      && !browserShortcutAction(event, shortcuts, mac, reservations)) {
+      event.preventDefault(); event.stopPropagation(); setPaletteOpen(true); return;
+    }
+    if (!event.target.matches(".file-browser-list")) return;
+    if (quickPreview && event.key === "Escape") {
+      event.preventDefault(); event.stopPropagation(); closePreview(); return;
+    }
+    const action = browserShortcutAction(event, shortcuts, mac, workspace.shortcutReservations?.());
+    if (!action || action === "address" || action === "filter") return;
+    event.preventDefault(); event.stopPropagation();
+    runListCommand(action);
   }} onKeyDown={event => {
     if (quickPreview && !event.defaultPrevented && event.key === "Escape" && event.target instanceof HTMLElement && event.target.closest(".file-browser-quick-preview")) { event.preventDefault(); event.stopPropagation(); closePreview(); return; }
     if (quickPreview || event.defaultPrevented || event.key !== "Tab" || !(event.target instanceof HTMLElement) || !event.target.matches(".file-browser-list")) return;
@@ -274,6 +337,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       </div>
       <button type="button" aria-label="统计当前目录大小" title="统计当前目录大小（手动递归，包含隐藏项）" disabled={!currentLocation || queueBusy} onClick={() => currentLocation && setSizeScope({ rootId: currentLocation.rootId, node: currentLocation.node, name: roots.find(root => root.id === currentLocation.rootId)?.name ?? currentLocation.rootId })}><ToolbarIcon name="info" /></button>
       <button ref={shortcutsButton} type="button" aria-label="文件浏览快捷键" title="文件浏览快捷键" onClick={() => setShortcutsOpen(true)}><ToolbarIcon name="sliders" /></button>
+      {compact && <button type="button" aria-label="命令面板" title={`命令面板（${displayBrowserShortcut("Mod+Shift+P", mac)}）`} onClick={() => setPaletteOpen(true)}><ToolbarIcon name="search" /></button>}
       {toolbarExtras && <div className="file-browser-action-group file-browser-host-tools" role="group" aria-label="工作台工具">{toolbarExtras}</div>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}
@@ -316,6 +380,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       catch (reason) { setError(String(reason)); }
       event.currentTarget.value = "";
     }} />
+    {paletteOpen && active && <FileBrowserCommandPalette commands={paletteCommands()} onClose={() => setPaletteOpen(false)} />}
     {sizeScope && active && <FileBrowserToolDialog title="目录大小" onClose={() => setSizeScope(null)}><FileBrowserDirectorySize {...sizeScope} provider={provider} cache={sizeCache.current} /></FileBrowserToolDialog>}
     {shortcutsOpen && active && <FileBrowserShortcuts value={shortcuts} mac={mac} reservations={reservations} restoreFocusRef={shortcutsButton} onClose={() => setShortcutsOpen(false)} onSave={next => saveBrowserShortcuts(workspace.settings, next, mac, workspace.shortcutReservations?.())} />}
     {operation && active && <FileBrowserOperationDialog operation={operation} workspace={workspace} onConfirm={(snapshot, name) => { queue.enqueue(snapshot, name); setOperation(null); setQueueOpen(true); }} onClose={() => setOperation(null)} />}

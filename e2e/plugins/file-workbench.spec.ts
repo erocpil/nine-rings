@@ -1280,6 +1280,39 @@ test("目录标签可从右栏移动到左栏，并沿用原浏览历史", async
   await expect(left.getByRole("option", { name: /^alpha.c/ })).toBeVisible();
 });
 
+test("命令面板查找操作和固定、最近目录，并复用写入门禁", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await left.getByRole("option", { name: /^sub/ }).dblclick();
+  const tab = left.getByRole("tab", { name: "sub", exact: true });
+  await tab.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "固定标签", exact: true }).click();
+  await left.getByRole("button", { name: "后退目录", exact: true }).click();
+  await page.getByRole("button", { name: "命令面板", exact: true }).click();
+  const palette = page.getByRole("dialog", { name: "命令面板" });
+  const query = palette.getByRole("textbox", { name: "查找命令或目录" });
+  await expect(query).toBeFocused();
+  await query.fill("复制到另一栏");
+  const copy = palette.getByRole("button", { name: /复制到另一栏/ });
+  await expect(copy).toHaveAttribute("aria-disabled", "true");
+  await expect(copy).toContainText("F5");
+  await expect(copy).toContainText("来源目录只读");
+  await query.press("Enter");
+  await expect(palette).toBeVisible();
+  await query.fill("固定目录 sub");
+  await query.press("Enter");
+  await expect(palette).toHaveCount(0);
+  await expect(left.getByRole("option", { name: /^guide.md/ })).toBeVisible();
+  await left.getByRole("listbox").focus();
+  await page.keyboard.press("ControlOrMeta+Shift+P");
+  await query.fill("最近目录 sub");
+  await expect(palette.getByRole("button", { name: /最近目录.*sub/ })).toBeVisible();
+  await query.press("Escape");
+  await expect(palette).toHaveCount(0);
+  await expect(left.getByRole("listbox")).toBeFocused();
+});
+
 test("大量文件删除后刷新夹紧滚动，剩余条目完整显示并可继续键盘导航", async ({ page }) => {
   await page.addInitScript(() => {
     let callback = 1;
