@@ -25,6 +25,33 @@ fn main_window(window: &tauri::WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 #[tauri::command]
+async fn workbench_show_manual(window: tauri::WebviewWindow) -> Result<(), String> {
+    main_window(&window)?;
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        static CREATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _creation = CREATION.lock().map_err(|_| "手册窗口状态不可用")?;
+        let manual = match app.get_webview_window("workbench-manual") {
+            Some(window) => window,
+            None => tauri::WebviewWindowBuilder::new(
+                &app,
+                "workbench-manual",
+                tauri::WebviewUrl::App("file-workbench-manual.html".into()),
+            )
+            .title("File Workbench 用户手册")
+            .inner_size(740., 800.)
+            .min_inner_size(360., 420.)
+            .build()
+            .map_err(|error| error.to_string())?,
+        };
+        manual.unminimize().map_err(|error| error.to_string())?;
+        manual.show().map_err(|error| error.to_string())?;
+        manual.set_focus().map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+#[tauri::command]
 fn workbench_ready(
     window: tauri::WebviewWindow,
     policy: tauri::State<'_, ClosePolicy>,
@@ -312,6 +339,7 @@ fn main() {
             editor_window::workbench_editor_request_quit,
             editor_window::workbench_show_browser,
             editor_window::workbench_show_editor,
+            workbench_show_manual,
             workbench_ready,
             workbench_toggle_maximize,
             tools::workbench_run_tool,

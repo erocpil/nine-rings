@@ -1441,26 +1441,57 @@ test("ZIP 只读浏览支持目录进入、UTF-8 预览和单项原字节解压"
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
-test("内置用户手册可从工具栏及命令面板打开，窄窗口下目录可跳转且正文只读", async ({ page }) => {
+test("内置用户手册独立打开，窄窗口可跳目录，浏览窗口可继续操作", async ({ page }) => {
   await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const opened = page.waitForEvent("popup");
   await page.getByRole("button", { name: "用户手册", exact: true }).click();
-  const manual = page.getByRole("dialog", { name: "File Workbench 用户手册", exact: true });
+  const manualPage = await opened;
+  const manual = manualPage.getByRole("main", { name: "File Workbench 用户手册", exact: true });
   const heading = manual.getByRole("heading", { name: "7. 磁盘文件发生外部变化", exact: true });
   const toc = manual.getByRole("navigation", { name: "文档内目录", exact: true });
   await expect(toc).toBeVisible();
   await expect(manual.locator("[contenteditable=true]")).toHaveCount(0);
   await expect(manual.getByRole("button", { name: /保存|允许编辑/ })).toHaveCount(0);
-  await page.setViewportSize({ width: 390, height: 780 });
+  await manualPage.setViewportSize({ width: 390, height: 780 });
   await toc.getByRole("link", { name: "7. 磁盘文件发生外部变化", exact: true }).click();
   await expect(heading).toBeInViewport();
   await expect.poll(() => manual.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
-  await manual.getByRole("button", { name: "关闭File Workbench 用户手册", exact: true }).click();
-  await expect(manual).toHaveCount(0);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await left.getByRole("option", { name: /^sub/ }).dblclick();
+  await expect(left.getByRole("option", { name: /^guide.md/ })).toBeVisible();
+  await expect(heading).toBeInViewport();
+  await manualPage.close();
   await page.getByRole("button", { name: "命令面板", exact: true }).click();
   const query = page.getByRole("textbox", { name: "查找命令或目录" });
   await query.fill("用户手册");
+  const fromPalette = page.waitForEvent("popup");
   await query.press("Enter");
-  await expect(toc).toBeVisible();
+  await expect((await fromPalette).getByRole("navigation", { name: "文档内目录", exact: true })).toBeVisible();
+});
+
+test("桌面手册入口调用独立窗口，浏览工具仍可操作", async ({ page }) => {
+  await page.addInitScript(() => {
+    let id = 0;
+    const calls: string[] = [];
+    Object.assign(window, { manualWindowCalls: calls, __TAURI_INTERNALS__: {
+      transformCallback() { return ++id; }, unregisterCallback() {},
+      async invoke(command: string) {
+        if (command === "workbench_window_role") return "browser";
+        if (command === "workbench_editor_presence") return { revision: 0, present: false };
+        if (command === "plugin:event|listen") return ++id;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [];
+        if (command === "workbench_show_manual") { calls.push(command); return; }
+        throw new Error(command);
+      },
+    } });
+  });
+  await page.goto("/file-workbench.html");
+  await page.getByRole("button", { name: "用户手册", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, "manualWindowCalls"))).toEqual(["workbench_show_manual"]);
+  await page.getByRole("button", { name: "文件暂存架", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "文件暂存架", exact: true })).toBeVisible();
 });
 
 test("命令面板查找操作和固定、最近目录，并复用写入门禁", async ({ page }) => {

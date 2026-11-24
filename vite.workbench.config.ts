@@ -32,7 +32,7 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify("file-workbench-prototype") },
   resolve: { alias: { "decode-named-character-reference": fileURLToPath(new URL("./node_modules/decode-named-character-reference/index.js", import.meta.url)) } },
   worker: { format: "es", plugins: () => [pcre2Assets()] },
-  build: { outDir: ".local-tools/file-workbench-dist", rollupOptions: { input: { workbench: fileURLToPath(new URL("./file-workbench.html", import.meta.url)), pdfPrint: fileURLToPath(new URL("./pdf-print.html", import.meta.url)) }, output: {
+  build: { outDir: ".local-tools/file-workbench-dist", rollupOptions: { input: { workbench: fileURLToPath(new URL("./file-workbench.html", import.meta.url)), manual: fileURLToPath(new URL("./file-workbench-manual.html", import.meta.url)), pdfPrint: fileURLToPath(new URL("./pdf-print.html", import.meta.url)) }, output: {
     onlyExplicitManualChunks: true,
     manualChunks(id) {
       // The shared source editor must not pull CodeMirror's base runtime into a

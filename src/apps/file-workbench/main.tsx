@@ -33,7 +33,6 @@ import { createWorkbenchHost } from "./host";
 import "../../styles.css";
 import "./workbench.css";
 
-const WorkbenchManual = lazy(() => import("./WorkbenchManual").then(module => ({ default: module.WorkbenchManual })));
 const SourceView = lazy(() => import("./SourceView").then(module => ({ default: module.WorkbenchSourceView })));
 // A single host lifetime survives React renders; no builtin app bootstrap runs.
 let nativeClose: ((confirm: () => void) => void) | null = null;
@@ -56,8 +55,13 @@ window.addEventListener("pagehide", event => { if (!event.persisted) { removeToo
 const MarkdownLinkUpdateDialog = lazy(() => import("./MarkdownLinkUpdateDialog").then(module => ({ default: module.MarkdownLinkUpdateDialog })));
 function Workbench() {
   useEdgeScrollbars();
-  const [manualOpen, setManualOpen] = useState(false);
-  const showManual = () => setManualOpen(true);
+  const showManual = () => {
+    if (isTauriRuntime()) {
+      void import("@tauri-apps/api/core").then(({ invoke }) => invoke("workbench_show_manual")).catch(cause => setNativeNotice(`无法打开用户手册：${String(cause)}`));
+    } else {
+      window.open(new URL("./file-workbench-manual.html", window.location.href), "_blank", "noopener");
+    }
+  };
   const [editorOpen, setEditorOpen] = useState(editorPresent);
   updateEditorPresence = setEditorOpen;
   const palette = useWorkbenchPalette(host.workspace.settings);
@@ -217,7 +221,6 @@ function Workbench() {
       </div>
     </div>}
     {execution.element}
-    {manualOpen && <Suspense fallback={<p role="status">正在加载用户手册…</p>}><WorkbenchManual onClose={() => setManualOpen(false)} /></Suspense>}
     <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} revealFile={reveal} toolbarExtras={tools} commands={[{ id: "workbench-manual", label: "用户手册", detail: "帮助", run: showManual }, ...customTools.filter(tool => tool.kind !== "separator").map(tool => ({
       id: `tool-${tool.id}`, label: tool.name, detail: `自定义工具${tool.hint ? ` · ${tool.hint}` : ""}`,
       unavailable: !isTauriRuntime() ? "命令仅桌面版可执行" : undefined,
