@@ -202,9 +202,18 @@ test("双击预览左右键跨文本与图片，只读可切换，编辑方向�
     await page.keyboard.press("ArrowLeft"); await expect(picture).toBeVisible();
     await page.keyboard.press("ArrowRight"); await expect(text.getByRole("heading", { name: "Last", exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as any).__releasedPreviewUrls)).toContain(imageUrl);
-    await expect(text.getByRole("button", { name: "下一文件", exact: true })).toBeDisabled();
+    const nextFile = text.getByRole("button", { name: "下一文件", exact: true });
+    const linkForward = text.getByRole("button", { name: "链接前进", exact: true });
+    await expect(nextFile).toBeDisabled();
+    const expectDistinctNavigationIcons = async () => {
+      await expect(nextFile.locator("svg")).toHaveCount(1);
+      await expect(linkForward.locator("svg")).toHaveCount(1);
+      expect(await linkForward.locator("svg").innerHTML()).not.toBe(await nextFile.locator("svg").innerHTML());
+    };
+    await expectDistinctNavigationIcons();
     await text.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
     await text.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+    await expectDistinctNavigationIcons();
     await text.locator(".cm-content").click(); await page.keyboard.press("ControlOrMeta+End"); await page.keyboard.insertText("unsaved");
     await page.keyboard.press("ArrowLeft"); await expect(text.locator(".cm-content")).toContainText("unsaved");
     await text.getByRole("button", { name: "上一文件", exact: true }).click();
@@ -979,6 +988,8 @@ test("独立工作台使用图标工具栏、统一地址栏与列表前的标�
     expect(await button.getAttribute("title")).toBeTruthy();
     await expect(button.locator("svg")).toHaveCount(1);
   }
+  const glyphs = await tools.locator("svg").evaluateAll(icons => icons.map(icon => icon.innerHTML));
+  expect(new Set(glyphs).size).toBe(glyphs.length);
   await expect(toolbar.getByRole("button", { name: "恢复草稿（0）", exact: true })).toBeVisible();
   await toolbar.getByRole("button", { name: "恢复草稿（0）", exact: true }).click();
   const recovery = page.getByRole("dialog", { name: "恢复草稿", exact: true });
@@ -2407,6 +2418,12 @@ test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤�
   expect(await page.evaluate(() => (window as any).__markdownDisk.writes)).toBe(0);
   await rendered.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
   await expect(body).toBeEditable();
+  const moreTools = rendered.getByRole("button", { name: "更多工具", exact: true });
+  if (await moreTools.getAttribute("aria-expanded") === "false") await moreTools.click();
+  const editIcons = await Promise.all(["行内代码", "插入流程块", "导出 HTML", "复制块", "全选"].map(name =>
+    rendered.getByRole("button", { name, exact: true }).locator("svg").innerHTML()
+  ));
+  expect(new Set(editIcons).size).toBe(editIcons.length);
   await expect(rendered.getByRole("button", { name: "导出 PDF", exact: true })).toHaveCount(1);
   const htmlDownload = page.waitForEvent("download");
   await rendered.getByRole("button", { name: "导出 HTML", exact: true }).click();

@@ -125,7 +125,7 @@ export function DocumentReadingToolbar({
           </button>
         )}
         {onExportPdf && <button type="button" className="menu-btn" aria-label="导出 PDF" title="导出 PDF" onClick={onExportPdf}><ToolbarIcon name="document" /></button>}
-        {onExportHtml && <button type="button" className="menu-btn" aria-label="导出 HTML" title="导出 HTML" onClick={onExportHtml}><ToolbarIcon name="code" /></button>}
+        {onExportHtml && <button type="button" className="menu-btn" aria-label="导出 HTML" title="导出 HTML" onClick={onExportHtml}><ToolbarIcon name="htmlFile" /></button>}
       </DocumentToolbar>
       {foldMenu && (
         <BlockActionMenu

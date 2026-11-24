@@ -1527,7 +1527,7 @@ export function MarkdownSourceEditor({
                   ["有序列表", "ordered", "ordered", "ordered", "format.ordered"],
                   ["待办列表", "check", "todo", "task", "format.todo"],
                   ["表格", "table", "table", "table", null],
-                  ["分隔线", "minus", "rule", "rule", null],
+                  ["分隔线", "horizontalRule", "rule", "rule", null],
                 ] as const
               ).map(([label, icon, format, kind, shortcut]) => {
                 const insert = kind === "code" || kind === "table" || kind === "rule";
@@ -1558,8 +1558,8 @@ export function MarkdownSourceEditor({
           <SourceNavigationControls editorRef={view} onMessage={setSourceMessage} />
           {([
             ["扩大结构选区", "expand", expandSourceSelection],
-            ["缩小结构选区", "minus", shrinkSourceSelection],
-            ["跳转配对括号", "code", jumpSourceBracket],
+            ["缩小结构选区", "compress", shrinkSourceSelection],
+            ["跳转配对括号", "brackets", jumpSourceBracket],
             ["上一处同词", "chevronLeft", (v: EditorView) => jumpSourceWord(v, -1)],
             ["下一处同词", "chevronRight", (v: EditorView) => jumpSourceWord(v, 1)],
           ] as const).map(([title, icon, command]) => <button key={title} type="button" title={title} aria-label={title.split(" · ")[0]} onMouseDown={event => event.preventDefault()} onClick={() => run(command)}><ToolbarIcon name={icon} /></button>)}

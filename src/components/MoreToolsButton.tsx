@@ -10,6 +10,6 @@ export function MoreToolsButton({ expanded, onToggle, title = "更多工具", cl
   return <button type="button" className={`document-more-tools ${className}${expanded ? " active" : ""}`}
     title={title} aria-label="更多工具" data-tooltip-always="true"
     aria-expanded={expanded} aria-pressed={expanded} onClick={onToggle}>
-    <ToolbarIcon name="annotate" />
+    <ToolbarIcon name="tools" />
   </button>;
 }

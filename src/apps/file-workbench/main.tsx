@@ -187,8 +187,8 @@ function Workbench() {
   }, []);
   const tools = <>
     <CustomTools settings={host.workspace.settings} tools={customTools} onToolsChange={setCustomTools} context={file ? { ...toolContext, rootId: file.rootId, node: file.node.id.split("/").slice(0, -1).join("/"), selected: [file.node.id] } : toolContext} onRun={(tool, context, direct) => void execution.request(tool, context, direct)} onShowResult={execution.showLast} hasResult={execution.hasResult} />
-    <button type="button" aria-label={`恢复草稿（${drafts.length}）`} title={`恢复草稿（${drafts.length}）`} onClick={() => setDraftsOpen(true)}><ToolbarIcon name="history" /></button>
-    {nativeRole === "browser" && <button type="button" aria-label="显示编辑器窗口" title="显示独立编辑器窗口" onClick={() => { void showWorkbenchEditor().catch(cause => setNativeNotice(String(cause))); }}><ToolbarIcon name="edit" /></button>}
+    <button type="button" aria-label={`恢复草稿（${drafts.length}）`} title={`恢复草稿（${drafts.length}）`} onClick={() => setDraftsOpen(true)}><ToolbarIcon name="draftRecovery" /></button>
+    {nativeRole === "browser" && <button type="button" aria-label="显示编辑器窗口" title="显示独立编辑器窗口" onClick={() => { void showWorkbenchEditor().catch(cause => setNativeNotice(String(cause))); }}><ToolbarIcon name="editorWindow" /></button>}
     {markdownMoves && <button type="button" aria-label="更新 Markdown 引用" title="预览最近改名或移动涉及的 Markdown 引用" onClick={() => {
       try { host.operations.assertIdle(); setReviewMoves(markdownMoves); } catch (cause) { nativeError?.(cause); }
     }}><ToolbarIcon name="link" /></button>}
@@ -197,7 +197,7 @@ function Workbench() {
   </>;
   const externalEditor = file && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用此文件类型的系统默认应用打开磁盘原文件" onClick={() => {
     void host.workspace.externalOpen!.open(file.rootId, file.node.id, false).catch(cause => setNativeNotice(`外部打开失败：${String(cause)}`));
-  }}><ToolbarIcon name="export" /></button>;
+  }}><ToolbarIcon name="externalOpen" /></button>;
   return <main className="file-workbench-app" onDoubleClick={event => {
     if (!isTauriRuntime() || !(event.target instanceof Element)) return;
     if (!event.target.closest(".local-file-titlebar, .workbench-rendered-session .note-title-row, .file-browser-quick-preview > header") || (event.target.closest("button, input, textarea, select, a, [contenteditable]") && !event.target.closest(".document-title-preview"))) return;

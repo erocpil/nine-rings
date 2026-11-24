@@ -241,7 +241,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
           if (fileMenu) { setFileMenu(null); return; }
           const trigger = event.currentTarget, rect = trigger.getBoundingClientRect();
           setFileMenu({ id: "workbench-editor-files", title: "切换编辑文件", x: rect.left, y: rect.bottom, trigger });
-        }}><ToolbarIcon name="document" /></button>{!item.file.bufferId && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="export" /></button>}</>} file={item.file}
+        }}><ToolbarIcon name="fileStack" /></button>{!item.file.bufferId && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="externalOpen" /></button>}</>} file={item.file}
           onFollowFile={(target, position) => followLink(item, target, position)}
           linkRequest={link?.id === item.id ? link.request : undefined}
           linkHistory={{ back: history.current.back, forward: history.current.forward }}

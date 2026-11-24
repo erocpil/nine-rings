@@ -353,24 +353,24 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
       <div className="file-browser-action-group" role="group" aria-label="文件操作">
       {(["copy", "move", "rename", "batch-rename", "file", "directory", "trash"] as const).map(kind => {
         const label = { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", file: "新建文件", directory: "新建文件夹", trash: "移入系统回收站" }[kind];
-        const icons = { copy: "copy", move: "move", rename: "rename", "batch-rename": "ordered", file: "document", directory: "folder", trash: "trash" } as const;
+        const icons = { copy: "copy", move: "move", rename: "rename", "batch-rename": "batchRename", file: "newFile", directory: "newFolder", trash: "trash" } as const;
         const shortcut = shortcuts[kind].map(key => displayBrowserShortcut(key, mac)).join(" / ");
         const short = { copy: "复制", move: "移动", rename: "改名", "batch-rename": "批量", file: "新建", directory: "目录", trash: "回收站" }[kind];
         return <button key={kind} type="button" aria-label={label} disabled={operationDisabled(kind)} title={compact && operationDisabled(kind) ? `${label}（当前工作台尚未开放此操作）` : (kind === "copy" || kind === "move") && !workspace.canTransfer() ? "双栏传输需要桌面版" : `${label}${shortcut ? `（${shortcut}，列表焦点内）` : ""}`} onClick={() => startOperation(kind)}><ToolbarIcon name={icons[kind]} />{!compact && <><span>{short}</span>{shortcut && <kbd>{shortcut}</kbd>}</>}</button>;
       })}
       </div><div className="file-browser-action-group" role="group" aria-label="浏览工具">
-      <button type="button" aria-label="操作队列" title="查看操作队列与逐项结果" onClick={() => setQueueOpen(true)}><ToolbarIcon name="ordered" />{!compact && <span>队列{jobs.length ? ` ${jobs.filter(job => !browserJobSettled(job)).length}/${jobs.length}` : ""}{jobs.some(job => job.status === "waiting") ? " · 等待决定" : ""}</span>}</button>
+      <button type="button" aria-label="操作队列" title="查看操作队列与逐项结果" onClick={() => setQueueOpen(true)}><ToolbarIcon name="operationQueue" />{!compact && <span>队列{jobs.length ? ` ${jobs.filter(job => !browserJobSettled(job)).length}/${jobs.length}` : ""}{jobs.some(job => job.status === "waiting") ? " · 等待决定" : ""}</span>}</button>
       <button type="button" aria-label="快速预览" title={`快速预览${shortcuts.preview.length ? `（${shortcuts.preview.map(key => displayBrowserShortcut(key, mac)).join(" / ")}，列表焦点内）` : ""}`} aria-pressed={quickPreview} onClick={() => setQuickPreview(value => !value)}><ToolbarIcon name="eye" />{!compact && <span>预览</span>}</button>
       <button type="button" aria-label="比较目录" title="比较两栏当前目录" disabled={!currentLocation} onClick={openComparison}><ToolbarIcon name="compare" />{!compact && <span>比较</span>}</button>
       <button type="button" aria-label="搜索正文" title="搜索活动目录的正文" disabled={!currentLocation} onClick={() => currentLocation && setTool({ kind: "search", scope: { rootId: currentLocation.rootId, node: currentLocation.node } })}><ToolbarIcon name="search" />{!compact && <span>搜索</span>}</button>
       <button type="button" aria-label="交换两栏" title="交换两栏及其目录标签" onClick={() => { setQuickPreview(false); setState(exchangeBrowserPanes); focusList(state.active === 0 ? 1 : 0); }}><ToolbarIcon name="switchViews" /></button>
-      <button type="button" aria-label="两栏同路径" title="将另一栏切换到活动栏的目录" disabled={!currentLocation} onClick={() => { setQuickPreview(false); setState(mirrorBrowserPath); focusList(state.active); }}><ToolbarIcon name="link" /></button>
+      <button type="button" aria-label="两栏同路径" title="将另一栏切换到活动栏的目录" disabled={!currentLocation} onClick={() => { setQuickPreview(false); setState(mirrorBrowserPath); focusList(state.active); }}><ToolbarIcon name="samePath" /></button>
       </div>
-      <button type="button" aria-label="统计当前目录大小" title="统计当前目录大小（手动递归，包含隐藏项）" disabled={!currentLocation || queueBusy} onClick={() => currentLocation && setSizeScope({ rootId: currentLocation.rootId, node: currentLocation.node, name: roots.find(root => root.id === currentLocation.rootId)?.name ?? currentLocation.rootId })}><ToolbarIcon name="info" /></button>
-      <button ref={shortcutsButton} type="button" aria-label="文件浏览快捷键" title="文件浏览快捷键" onClick={() => setShortcutsOpen(true)}><ToolbarIcon name="sliders" /></button>
-      {compact && <button type="button" aria-label="命名工作区" title="命名工作区" onClick={() => setLayoutsOpen(true)}><ToolbarIcon name="compare" /></button>}
-      {compact && <button type="button" aria-label="文件暂存架" title={`文件暂存架（${shelf.length} 项）`} onClick={() => setShelfOpen(true)}><ToolbarIcon name="bookmark" /></button>}
-      {compact && <button type="button" aria-label="命令面板" title={`命令面板（${displayBrowserShortcut("Mod+Shift+P", mac)}）`} onClick={() => setPaletteOpen(true)}><ToolbarIcon name="search" /></button>}
+      <button type="button" aria-label="统计当前目录大小" title="统计当前目录大小（手动递归，包含隐藏项）" disabled={!currentLocation || queueBusy} onClick={() => currentLocation && setSizeScope({ rootId: currentLocation.rootId, node: currentLocation.node, name: roots.find(root => root.id === currentLocation.rootId)?.name ?? currentLocation.rootId })}><ToolbarIcon name="folderSize" /></button>
+      <button ref={shortcutsButton} type="button" aria-label="文件浏览快捷键" title="文件浏览快捷键" onClick={() => setShortcutsOpen(true)}><ToolbarIcon name="keyboard" /></button>
+      {compact && <button type="button" aria-label="命名工作区" title="命名工作区" onClick={() => setLayoutsOpen(true)}><ToolbarIcon name="workspaceLayout" /></button>}
+      {compact && <button type="button" aria-label="文件暂存架" title={`文件暂存架（${shelf.length} 项）`} onClick={() => setShelfOpen(true)}><ToolbarIcon name="inbox" /></button>}
+      {compact && <button type="button" aria-label="命令面板" title={`命令面板（${displayBrowserShortcut("Mod+Shift+P", mac)}）`} onClick={() => setPaletteOpen(true)}><ToolbarIcon name="commandPrompt" /></button>}
       {toolbarExtras && <div className="file-browser-action-group file-browser-host-tools" role="group" aria-label="工作台工具">{toolbarExtras}</div>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}

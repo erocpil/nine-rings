@@ -220,7 +220,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
 
   return (<>
     {btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly, "document.replace")}
-    {btn(<ToolbarIcon name="copy" />, () => { void actions.handleCopyBlock(); }, false, "复制块", false)}
+    {btn(<ToolbarIcon name="copyBlock" />, () => { void actions.handleCopyBlock(); }, false, "复制块", false)}
     <span className="toolbar-history-actions">
       {btn(<span className="toolbar-history-icon toolbar-history-icon-undo"><ToolbarIcon name="undo" /></span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly || !editor.can().undo(), "edit.undo")}
       {btn(<span className="toolbar-history-icon toolbar-history-icon-redo"><ToolbarIcon name="redo" /></span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly || !editor.can().redo(), "edit.redo")}
@@ -264,7 +264,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<ToolbarIcon name="indent" />, () => changeSelectedBlockIndent(1), false, editor.isActive("codeBlock") ? "增加代码块缩进（代码内 Tab 仅缩进代码）" : "增加块缩进 (Tab)", readonly)}
     {btn(<ToolbarIcon name="outdent" />, () => changeSelectedBlockIndent(-1), false, editor.isActive("codeBlock") ? "减少代码块缩进（代码内 Shift+Tab 仅减少代码缩进）" : "减少块缩进 (Shift+Tab)", readonly)}
     {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行（Shift+Enter）", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak(), undefined, "块内换行")}
-    {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && btn(<ToolbarIcon name="lineBreak" />, () => { exitCurrentStructuredBlock(editor); }, false, "退出当前块（Ctrl+Enter）", readonly)}
+    {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && btn(<ToolbarIcon name="exit" />, () => { exitCurrentStructuredBlock(editor); }, false, "退出当前块（Ctrl+Enter）", readonly)}
     {layout.showBlankBlockShortcut && btn(<ToolbarIcon name="plus" />, actions.insertBlankBlockAfterCurrent, false, "在当前块后插入空白块", readonly)}
     </>)}
     <span className="menu-sep" />
@@ -319,8 +319,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         )}
       </div>
     )}
-    {btn(<ToolbarIcon name="code" />, insertFlow, false, "插入流程块", readonly)}
-    {btn("—", () => editor.chain().focus().setHorizontalRule().run(), false, "水平分隔线", readonly)}
+    {btn(<ToolbarIcon name="flowDiagram" />, insertFlow, false, "插入流程块", readonly)}
+    {btn(<ToolbarIcon name="horizontalRule" />, () => editor.chain().focus().setHorizontalRule().run(), false, "水平分隔线", readonly)}
     <button className="menu-btn" data-toolbar-tool="image" onClick={() => { if (!readonly) setImageDialog(true); }} type="button" title="插入图片" disabled={readonly}>
       <ToolbarIcon name="image" />
     </button>
@@ -420,13 +420,13 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly || !hasSelection(), "edit.copy")}
       {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly || !hasSelection(), "edit.cut")}
       {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly, "edit.paste")}
-      {btn(<ToolbarIcon name="copy" />, () => selectWholeDocument(editor), false, "全选", false, "edit.all")}
-      {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("block"); }, false, "复制块引用")}
-      {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
+      {btn(<ToolbarIcon name="selectAll" />, () => selectWholeDocument(editor), false, "全选", false, "edit.all")}
+      {actions.copyReference && btn(<ToolbarIcon name="blockReference" />, () => { void actions.copyReference!("block"); }, false, "复制块引用")}
+      {actions.copyReference && btn(<ToolbarIcon name="positionReference" />, () => { void actions.copyReference!("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
     </span>
     {btn(<ToolbarIcon name="export" />, () => { void handleExportMarkdown(); }, false, "导出 Markdown", false, "document.export-md")}
     {handleExportPdf && btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF", false, "document.export-pdf")}
-    {handleExportHtml && btn(<ToolbarIcon name="code" />, handleExportHtml, false, "导出 HTML", false, "document.export-html")}
+    {handleExportHtml && btn(<ToolbarIcon name="htmlFile" />, handleExportHtml, false, "导出 HTML", false, "document.export-html")}
     <span className="menu-sep" />
     <span className="toolbar-font-actions" data-toolbar-tool="font">
     {btn("A⁻", () => onEditorFontSizeChange(Math.max(12, editorFontSize - 1)), false, "缩小字号", editorFontSize <= 12)}

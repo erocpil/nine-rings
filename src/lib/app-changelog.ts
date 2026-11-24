@@ -3,7 +3,7 @@ export const APP_CHANGELOG = [
   {
     date: "2026-11-24",
     title: "File Workbench 用户手册与磁盘变更提醒",
-    changes: ["File Workbench 新增内置只读用户手册，目录可直接跳转。", "File Workbench Editor 的磁盘变更弹层可通过明确操作关闭，稍后可从当前文件重新打开。"],
+    changes: ["File Workbench 用不同图标区分批量改名、操作队列、目录比较、命名工作区、正文搜索、命令面板等操作；编辑器区分链接历史、文件切换、代码和流程块，以及复制和全选。", "File Workbench 新增内置只读用户手册，目录可直接跳转。", "File Workbench Editor 的磁盘变更弹层可通过明确操作关闭，稍后可从当前文件重新打开。"],
   },
   {
     date: "2026-11-23",

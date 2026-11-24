@@ -630,8 +630,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     return () => cancelAnimationFrame(frame);
   }, [active, base, linkRequest, renderMarkdown, renderedLinkReady, linkSourceReady, file.headingFragment, navigationRequest]);
   const historyControls = onLinkHistory && linkHistory ? <span className="workbench-link-navigation">
-    <button type="button" className="btn-icon" title="链接后退" aria-label="链接后退" disabled={!linkHistory.back} onClick={() => onLinkHistory(-1, capturePosition(), requestClose)}><ToolbarIcon name="chevronLeft" /></button>
-    <button type="button" className="btn-icon" title="链接前进" aria-label="链接前进" disabled={!linkHistory.forward} onClick={() => onLinkHistory(1, capturePosition(), requestClose)}><ToolbarIcon name="chevronRight" /></button>
+    <button type="button" className="btn-icon" title="链接后退" aria-label="链接后退" disabled={!linkHistory.back} onClick={() => onLinkHistory(-1, capturePosition(), requestClose)}><ToolbarIcon name="arrowLeft" /></button>
+    <button type="button" className="btn-icon" title="链接前进" aria-label="链接前进" disabled={!linkHistory.forward} onClick={() => onLinkHistory(1, capturePosition(), requestClose)}><ToolbarIcon name="arrowRight" /></button>
   </span> : null;
   const [linkCheck, setLinkCheck] = useState<string | null>(null);
   const readLinkTarget = useCallback((node: string) => linkOrigin ? linkOrigin.read(linkOrigin.rootId, node) : host.read(file.rootId, node), [host, file.rootId, linkOrigin]);
@@ -639,9 +639,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     {historyControls}
     {markdown && (!persistDocument || linkOrigin) && <button type="button" className="btn-icon" aria-label="检查文档链接" title="检查文档链接" disabled={!base || loading} onClick={() => {
       try { setLinkCheck(current()); } catch (cause) { setLinkNotice({ message: String(cause) }); }
-    }}><ToolbarIcon name="link" /></button>}
+    }}><ToolbarIcon name="linkCheck" /></button>}
     <button className="btn-icon" type="button" aria-label="编辑器设置" title="编辑器设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
-    {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
+    {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="filePrevious" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="fileNext" /></button></>}
     <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={diskChangePending || Boolean(relocation) || loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
     <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
     <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={diskChangePending || untitled || loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>

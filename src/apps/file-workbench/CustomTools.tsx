@@ -144,8 +144,8 @@ export function CustomTools({ settings, context, onRun, onShowResult, hasResult,
       if (blocked || !isTauriRuntime() || (event.ctrlKey && isMacPlatform())) return;
       onRun({ ...tool, arguments: "" }, context, true);
     }} onContextMenu={event => showMenu(event, tool)} onDragStart={event => event.preventDefault()}><ToolIcon tool={tool} /></button>)}
-    <button type="button" aria-label="添加工具" title="添加或配置工具栏工具" onClick={() => configure()}><ToolbarIcon name="plus" /></button>
-    {hasResult && <button type="button" aria-label="查看上次工具执行" title="查看正在运行或上次执行的工具" onClick={() => { cancelMove(); onShowResult(); }}><ToolbarIcon name="info" /></button>}
+    <button type="button" aria-label="添加工具" title="添加或配置工具栏工具" onClick={() => configure()}><ToolbarIcon name="addTool" /></button>
+    {hasResult && <button type="button" aria-label="查看上次工具执行" title="查看正在运行或上次执行的工具" onClick={() => { cancelMove(); onShowResult(); }}><ToolbarIcon name="toolOutput" /></button>}
     {movingTool && createPortal(<div className="workbench-tool-notice">
       <span role="status">拖动「{tools.find(tool => tool.id === movingTool)?.name}」调整位置。</span>
       <button type="button" aria-label="取消移动工具" title="取消移动工具（Esc）" onClick={cancelMove}>×</button>
