@@ -259,3 +259,9 @@ html:where([data-workbench-palette]) :where(.workspace-dialog, dialog[open], [ro
 .workbench-markdown-link-dialog { padding: 12px 16px 16px; overflow-wrap: anywhere; }
 .workbench-markdown-link-dialog code { white-space: pre-wrap; }
 .workbench-markdown-link-dialog form { display: grid; gap: 8px; }
+
+.workspace-dialog.workbench-manual { width: min(880px, 100%); height: min(780px, 100%); overflow: hidden; }
+.workbench-manual .workspace-dialog-heading { flex: none; }
+.workbench-manual .markdown-split-source { display: none; }
+.workbench-manual .markdown-preview-pane { flex: 1; min-width: 0; border: 0; }
+.workbench-manual .markdown-preview-scroll { padding: 12px clamp(12px, 4vw, 30px) 48px; }

@@ -24,6 +24,7 @@ export function DiskChangeNotice({ store, active = true, activeId, target, activ
   const { message: toast, showMessage: showToast, clearMessage: clearToast } = useTransientMessage();
   const compareRequest = useRef(0);
   const trigger = useRef<HTMLElement | null>(null);
+  const focusDeferred = useRef(false);
   useEffect(() => () => { compareRequest.current++; }, []);
 
   const close = () => {
@@ -78,9 +79,14 @@ export function DiskChangeNotice({ store, active = true, activeId, target, activ
   const unresolvedComparison = compared && compared.disk.revision !== comparison.revision;
   const comparedActions = compared && store.actions.get(compared.id);
   const conflictActions = conflict && store.actions.get(conflict.id);
+  const deferCurrent = () => {
+    if (!current) return;
+    focusDeferred.current = true;
+    setDeferredRevision(current.disk.revision);
+  };
   const returnToEditor = () => {
     compareRequest.current++;
-    if (activeFileOnly && current) setDeferredRevision(current.disk.revision);
+    if (activeFileOnly && current) deferCurrent();
     if (conflict) store.dismissSaveConflict(conflict.id);
     setComparison(undefined);
     setConfirm(undefined);
@@ -94,7 +100,11 @@ export function DiskChangeNotice({ store, active = true, activeId, target, activ
   </div>;
   const banner = activeFileOnly ? deferred && <section className="disk-change-notice disk-change-deferred" data-document-dock-chrome aria-label="磁盘文件变更">
     <span role="status">磁盘版本已变化，当前内容暂时只读。</span>
-    <button type="button" onClick={event => { trigger.current = event.currentTarget; setDeferredRevision(undefined); }}>处理磁盘变更</button>
+    <button type="button" ref={button => {
+      if (!button || !focusDeferred.current) return;
+      focusDeferred.current = false;
+      button.focus({ preventScroll: true });
+    }} onClick={() => setDeferredRevision(undefined)}>处理磁盘变更</button>
   </section> : !!changes.length && <section className="disk-change-notice" data-document-dock-chrome data-expanded={expanded} aria-label="磁盘文件变更">
     {expanded ? <>
       <span role="status">{current ? `${current.name} 的磁盘版本已变化。${current.dirty ? "当前编辑已保留。" : ""}` : `${changes.length} 个打开的文件有磁盘变更。`}</span>
@@ -109,7 +119,7 @@ export function DiskChangeNotice({ store, active = true, activeId, target, activ
   </section>;
   return <>
     {target ? createPortal(banner, target) : banner}
-    {conflict ? <WorkspaceDialog key="save-conflict" title="磁盘文件保存冲突" onClose={returnToEditor} className={activeFileOnly ? "disk-change-dialog" : undefined}>
+    {conflict ? <WorkspaceDialog key="save-conflict" title="磁盘文件保存冲突" onClose={returnToEditor} dismissOnBackdrop={!activeFileOnly} className={activeFileOnly ? "disk-change-dialog" : undefined}>
       <div className="disk-save-conflict">
         <strong>{conflict.name}</strong>
         <small>{conflict.path}</small>
@@ -122,7 +132,7 @@ export function DiskChangeNotice({ store, active = true, activeId, target, activ
           <button type="button" onClick={returnToEditor}>{activeFileOnly && conflictChange ? "稍后处理" : "返回编辑"}</button>
         </div>
       </div>
-    </WorkspaceDialog> : comparison ? <WorkspaceDialog key="comparison" title="磁盘版本比较" onClose={() => { if (!working) close(); }} restoreFocusRef={trigger}
+    </WorkspaceDialog> : comparison ? <WorkspaceDialog key="comparison" title="磁盘版本比较" onClose={() => { if (!working) close(); }} restoreFocusRef={trigger} dismissOnBackdrop={!activeFileOnly}
       className={activeFileOnly ? "disk-change-dialog disk-change-comparison" : undefined}>
       {compared && !unresolvedComparison ? <>
         <p>{compared.name}{compared.dirty && " · 当前编辑和磁盘版本均已保留。"}</p>
@@ -144,8 +154,8 @@ export function DiskChangeNotice({ store, active = true, activeId, target, activ
       </> : <p role="status">{compared ? "磁盘版本又发生了变化。" : "该文件的磁盘变更已处理。"} {compared && <button type="button" onClick={() => void compare(compared)}>比较最新版本</button>}</p>}
       {message && <p role="status">{message}</p>}
       {feedback}
-    </WorkspaceDialog> : activeFileOnly && current && !deferred ? <WorkspaceDialog key="active-file" title="磁盘文件变更" className="disk-change-dialog"
-      onClose={() => { if (!working) { setDeferredRevision(current.disk.revision); close(); } }}>
+    </WorkspaceDialog> : activeFileOnly && current && !deferred ? <WorkspaceDialog key="active-file" title="磁盘文件变更" className="disk-change-dialog" dismissOnBackdrop={false}
+      onClose={() => { if (!working) { deferCurrent(); close(); } }}>
       <div className="disk-change-file">
         <strong>{current.name}</strong>
         <small>{current.path}</small>
@@ -155,7 +165,7 @@ export function DiskChangeNotice({ store, active = true, activeId, target, activ
         : "磁盘上有新版本。可以载入最新内容，或先查看两个版本的差异。"}</p>
       {message && <p role="status">{message}</p>}
       <div className="disk-change-controls">
-        <button type="button" disabled={working} onClick={() => { setDeferredRevision(current.disk.revision); close(); }}>稍后处理</button>
+        <button type="button" disabled={working} onClick={() => { deferCurrent(); close(); }}>稍后处理</button>
         <button className={current.dirty ? "disk-change-primary" : undefined} type="button" disabled={working} onClick={() => void compare(current)}>比较磁盘版本</button>
         {!current.dirty && <button className="disk-change-primary" type="button" disabled={working} onClick={() => void load([current])}>载入磁盘版本</button>}
       </div>

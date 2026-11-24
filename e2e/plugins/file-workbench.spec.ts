@@ -1430,6 +1430,28 @@ test("ZIP 只读浏览支持目录进入、UTF-8 预览和单项原字节解压"
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
+test("内置用户手册可从工具栏及命令面板打开，窄窗口下目录可跳转且正文只读", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  await page.getByRole("button", { name: "用户手册", exact: true }).click();
+  const manual = page.getByRole("dialog", { name: "File Workbench 用户手册", exact: true });
+  const heading = manual.getByRole("heading", { name: "7. 磁盘文件发生外部变化", exact: true });
+  const toc = manual.getByRole("navigation", { name: "文档内目录", exact: true });
+  await expect(toc).toBeVisible();
+  await expect(manual.locator("[contenteditable=true]")).toHaveCount(0);
+  await expect(manual.getByRole("button", { name: /保存|允许编辑/ })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 780 });
+  await toc.getByRole("link", { name: "7. 磁盘文件发生外部变化", exact: true }).click();
+  await expect(heading).toBeInViewport();
+  await expect.poll(() => manual.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  await manual.getByRole("button", { name: "关闭File Workbench 用户手册", exact: true }).click();
+  await expect(manual).toHaveCount(0);
+  await page.getByRole("button", { name: "命令面板", exact: true }).click();
+  const query = page.getByRole("textbox", { name: "查找命令或目录" });
+  await query.fill("用户手册");
+  await query.press("Enter");
+  await expect(toc).toBeVisible();
+});
+
 test("命令面板查找操作和固定、最近目录，并复用写入门禁", async ({ page }) => {
   await page.goto("/file-workbench.html");
   await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
@@ -3298,19 +3320,24 @@ test("独立编辑器磁盘变更仅提示当前标签，稍后处理时锁定�
   await beta.click();
   await expect(prompt).toContainText("/root/beta.c");
   await expect(prompt.getByRole("button", { name: "载入磁盘版本", exact: true })).toHaveCount(0);
+  await page.mouse.click(3, page.viewportSize()!.height / 2);
+  await expect(prompt).toBeVisible();
   await prompt.getByRole("button", { name: "稍后处理" }).click();
+  const reopen = page.getByRole("button", { name: "处理磁盘变更", exact: true });
+  await expect(reopen).toBeFocused();
   await expect(content).toHaveAttribute("contenteditable", "false");
   await expect(page.getByRole("button", { name: "允许编辑", exact: true })).toBeDisabled();
   await selectSource(content, "int local_beta;".length);
   await page.keyboard.insertText(" must not edit");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(content).toHaveText("int local_beta;");
-  const reopen = page.getByRole("button", { name: "处理磁盘变更", exact: true });
   await reopen.click();
   await prompt.getByRole("button", { name: "比较磁盘版本" }).click();
   const difference = page.getByRole("dialog", { name: "磁盘版本比较", exact: true });
   await expect(difference.getByLabel("当前内容", { exact: true })).toContainText("int local_beta;");
   await expect(difference.getByLabel("磁盘版本", { exact: true })).toContainText("int disk_beta;");
+  await page.mouse.click(3, page.viewportSize()!.height / 2);
+  await expect(difference).toBeVisible();
   await difference.getByRole("button", { name: "放弃编辑并载入…" }).click();
   await difference.getByRole("button", { name: "确认放弃编辑并载入" }).click();
   await expect(content).toHaveText("int disk_beta;");
@@ -3398,6 +3425,8 @@ test("独立编辑器轮询发现渲染正文冲突，保留编辑和磁盘副�
     expect(Math.abs(box.y + box.height / 2 - page.viewportSize()!.height / 2)).toBeLessThan(2);
     await prompt.screenshot({ path: testInfo.outputPath(`disk-change-${palette}.png`) });
   }
+  await page.mouse.click(3, page.viewportSize()!.height / 2);
+  await expect(prompt).toBeVisible();
   await prompt.getByRole("button", { name: "稍后处理" }).click();
   const notice = page.getByRole("region", { name: "磁盘文件变更", exact: true });
   await expect(notice).toBeVisible();

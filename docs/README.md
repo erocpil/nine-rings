@@ -5,7 +5,7 @@
 | 分类 | 内容与入口 |
 | --- | --- |
 | [架构](architecture/) | [关键设计](./architecture/current-design.md)、[工程设计地图](./architecture/engineering-design-map.md)、[统一文档工作区](./architecture/unified-document-workspace.md)、[数据边界](./architecture/document-data-boundaries.md) |
-| [功能契约](features/) | [功能规格](./features/features.md)、[Markdown 兼容性](./features/markdown-compatibility.md)、[源码语言](./features/document-source-languages.md)、[本地文件夹工作区](./features/local-folder-workspace.md) |
+| [功能契约](features/) | [功能规格](./features/features.md)、[Markdown 兼容性](./features/markdown-compatibility.md)、[源码语言](./features/document-source-languages.md)、[本地文件夹工作区](./features/local-folder-workspace.md)、[File Workbench 用户手册](./features/file-workbench-user-manual.md) |
 | [插件](plugins/) | [插件设计](./plugins/plugin-system-design.md)、[安装契约](./plugins/plugin-package-installation.md)、[展示扩展](./plugins/plugin-panel-presentation.md) |
 | [同步与备份](sync/) | [手动同步指南](./sync/incremental-sync.md)、[人工验收](./sync/sync-manual-validation.md)、[发布恢复](./sync/sync-publication-recovery.md) |
 | [开发与平台](development/) | [会话交接](./development/session-handoff.md)、[本地工具链](./development/local-toolchain.md)、[Tauri 构建](./development/TAURI_BUILD.md)、[Flutter 构建](./development/FLUTTER_BUILD.md)、[经验总结](./development/lessons-learned.md) |
