@@ -1,6 +1,6 @@
 # File Workbench 后续产品优化待办
 
-更新：2026-11-22
+更新：2026-11-24
 
 ## 同类产品对照与功能优先级
 
@@ -22,6 +22,21 @@ Workbench 已有模板式批量重命名和逐项预览、可配置快捷键、�
 ### 批量重命名
 
 替换先作用于主文件名，再转换大小写，最后将结果应用到模板。`{ext}` 保留原扩展名，`{n}` 按选中顺序编号，可配置起始值和位数。预设只保存规则，随各应用的本机设置保留。预览会检查计划内重复项和目录前 2000 项（包含隐藏项）。执行时复核授权、编辑状态和同名冲突，并使用原有排他重命名。目录只计算选中的目录名，内部文件名不参与转换。
+
+## Linux WebKitGTK 渲染启动选项
+
+适用 Nine Rings 和 File Workbench。2026-11-24 在 Gentoo 的 X11 会话实测，GTX 1080 Ti 使用 NVIDIA 官方驱动 `580.196.07`，WebKitGTK 为 `2.54.2`。默认启动两款应用都会记录 `DRM_IOCTL_MODE_CREATE_DUMB failed: Permission denied` 和 `Failed to create GBM buffer`。同一图形会话中，WebKitGTK 最小程序能复现报错；强制共享内存后，最小程序仍能渲染，两个应用的启动日志均不再出现 GBM 或 KMS 权限错误。验证范围为渲染探针和应用启动。 [WebKitGTK 共享内存渲染实现](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/gtk/AcceleratedBackingStore.cpp)
+
+当前可在完全退出应用后，用单次启动环境变量启用共享内存。需要从桌面启动时，可把同一变量写入应用各自的启动器。
+
+```sh
+WEBKIT_DMABUF_RENDERER_FORCE_SHM=1 nine-rings
+WEBKIT_DMABUF_RENDERER_FORCE_SHM=1 file-workbench
+```
+
+- [ ] 给两款应用增加统一的 Linux 启动选项 `--webkit-renderer=shm`，在创建首个 WebView 前应用。省略选项时沿用 WebKitGTK 的默认选择。
+- [ ] 核对 File Workbench 的首次启动和单实例转发。解析启动选项后再交给文件路径处理，并保留 `--` 后的路径。运行中的进程继续使用启动时的渲染方式。
+- [ ] 在 NVIDIA Gentoo 会话验收默认与共享内存两种启动方式、文件参数和单实例转发，并检查实际界面显示。
 
 ## 2026-11-18 编辑连续性与边界
 
